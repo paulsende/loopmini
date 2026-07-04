@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>LOOP Sandbox Mobile</title>
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#f4f4f1; }
+    #app { width:100vw; height:100vh; touch-action:none; }
+    canvas { touch-action:none; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+    .panel { position:fixed; left:18px; top:18px; width:314px; background:rgba(255,255,255,.82); backdrop-filter:blur(18px); border:1px solid rgba(0,0,0,.08); border-radius:18px; padding:14px; box-shadow:0 20px 60px rgba(0,0,0,.08); color:#151515; }
+    h1 { margin:0 0 4px; font-size:15px; font-weight:650; letter-spacing:-.02em; }
+    .sub { font-size:11px; line-height:1.35; color:#555; margin-bottom:12px; }
+    button { appearance:none; border:0; border-radius:12px; padding:9px 10px; font-size:12px; background:#171717; color:white; cursor:pointer; }
+    button.secondary { background:rgba(0,0,0,.07); color:#111; }
+    button.active { outline:2px solid rgba(0,0,0,.55); }
+    button:active { transform:translateY(1px); }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:9px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; margin-bottom:9px; }
+    .wide { width:100%; margin-bottom:7px; }
+    .colors { display:grid; grid-template-columns:repeat(4, 1fr); gap:7px; margin:8px 0 12px; }
+    .swatch { height:28px; border-radius:999px; border:1px solid rgba(0,0,0,.18); box-shadow:inset 0 2px 5px rgba(255,255,255,.65); }
+    .right { position:fixed; right:18px; top:18px; font-size:12px; color:#444; background:rgba(255,255,255,.64); backdrop-filter:blur(14px); border:1px solid rgba(0,0,0,.08); padding:10px 12px; border-radius:14px; }
+    label { font-size:11px; color:#555; display:block; margin:8px 0 4px; }
+    input[type="range"] { width:100%; }
+    #errorBox { display:none; position:fixed; right:18px; bottom:18px; max-width:520px; font-size:12px; color:#5a1111; background:rgba(255,235,235,.9); border:1px solid rgba(120,0,0,.18); padding:10px 12px; border-radius:14px; }
+    #rotateHud { display:none; position:fixed; transform:translate(-50%, -50%); gap:6px; align-items:center; pointer-events:auto; z-index:5; }
+    #rotateHud button { width:42px; height:42px; border-radius:999px; padding:0; font-size:18px; line-height:1; background:rgba(20,20,20,.88); color:white; box-shadow:0 8px 24px rgba(0,0,0,.18); }
+    #rotateHud .tag { font-size:11px; color:#111; background:rgba(255,255,255,.72); border:1px solid rgba(0,0,0,.08); padding:6px 8px; border-radius:999px; backdrop-filter:blur(12px); }
+    #camPad { position:fixed; right:18px; bottom:18px; width:58px; height:58px; border-radius:999px; background:rgba(20,20,20,.88); box-shadow:0 8px 24px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center; touch-action:none; cursor:grab; z-index:6; -webkit-user-select:none; user-select:none; }
+    #camPad:active { cursor:grabbing; }
+    #camPad svg { width:28px; height:28px; pointer-events:none; }
+
+    /* Mobile / touch layout: conserva la lógica desktop y sólo cambia interfaz + gestos */
+    @media (max-width: 760px), (pointer: coarse) {
+      html, body {
+        position:fixed;
+        inset:0;
+        width:100%;
+        height:100%;
+        overflow:hidden;
+        overscroll-behavior:none;
+        -webkit-user-select:none;
+        user-select:none;
+        -webkit-touch-callout:none;
+      }
+      #app {
+        width:100vw;
+        height:100dvh;
+        min-height:100svh;
+      }
+      .right {
+        top:calc(8px + env(safe-area-inset-top));
+        right:8px;
+        font-size:10px;
+        padding:6px 8px;
+        border-radius:999px;
+        background:rgba(255,255,255,.72);
+      }
+      .panel {
+        left:8px;
+        right:8px;
+        top:auto;
+        bottom:calc(8px + env(safe-area-inset-bottom));
+        width:auto;
+        max-height:33dvh;
+        max-height:33svh;
+        overflow:auto;
+        border-radius:18px;
+        padding:8px;
+        background:rgba(255,255,255,.90);
+      }
+      h1 { font-size:12px; margin:0 0 6px; }
+      .sub, label, .colors { display:none !important; }
+      button {
+        min-height:36px;
+        padding:7px 8px;
+        font-size:12px;
+        border-radius:13px;
+        touch-action:manipulation;
+      }
+      .wide { margin-bottom:6px; }
+      .grid, .grid3 { gap:6px; margin-bottom:6px; }
+      .grid3 { grid-template-columns:1fr 1fr 1fr; }
+      .panel > .grid:last-child { display:none; }
+      #rotateHud {
+        left:50% !important;
+        top:auto !important;
+        bottom:calc(33dvh + 24px + env(safe-area-inset-bottom));
+        transform:translateX(-50%);
+      }
+      #rotateHud button { width:50px; height:50px; font-size:22px; }
+      #rotateHud .tag { font-size:11px; padding:7px 9px; }
+      #errorBox {
+        left:8px;
+        right:8px;
+        bottom:calc(33dvh + 82px + env(safe-area-inset-bottom));
+        max-width:none;
+      }
+      #camPad {
+        right:calc(8px + env(safe-area-inset-right));
+        bottom:calc(33dvh + 24px + env(safe-area-inset-bottom));
+        width:50px;
+        height:50px;
+      }
+      #camPad svg { width:24px; height:24px; }
+    }
+
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="panel">
+    <h1>LOOP Sandbox</h1>
+    <button class="wide" id="add">Agregar módulo</button>
+    <div class="grid">
+      <button class="secondary" id="dup">Duplicar</button>
+      <button class="secondary" id="del">Borrar</button>
+    </div>
+    <div class="grid" style="margin-top:14px;">
+      <button class="secondary" id="shuffle">Rotar colores</button>
+      <button class="secondary" id="randomColor">Color random</button>
+    </div>
+    <button class="secondary wide" id="snap" style="margin-top:14px;">Snap: ON</button>
+    <div class="grid" style="margin-top:14px;">
+      <button class="secondary" id="clear">Limpiar</button>
+      <button class="secondary" id="shot">Captura</button>
+    </div>
+  </div>
+  <div class="right" id="counter">Cargando módulo...</div>
+  <div id="errorBox"></div>
+  <div id="rotateHud"><button id="hudRotL" title="Z -45°">↺</button><span class="tag">Z 45°</span><button id="hudRotR" title="Z +45°">↻</button></div>
+  <div id="camPad" title="Arrastrá para mover la cámara">
+    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="5 9 2 12 5 15"></polyline>
+      <polyline points="9 5 12 2 15 5"></polyline>
+      <polyline points="15 19 12 22 9 19"></polyline>
+      <polyline points="19 9 22 12 19 15"></polyline>
+      <line x1="2" y1="12" x2="22" y2="12"></line>
+      <line x1="12" y1="2" x2="12" y2="22"></line>
+    </svg>
+  </div>
+  <script>
+    window.addEventListener('error', (event) => { const box = document.getElementById('errorBox'); box.style.display='block'; box.textContent='Error: '+(event.message||'revisar consola'); });
+  </script>
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.165.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/", "fflate": "https://unpkg.com/fflate@0.8.2/esm/browser.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { TransformControls } from 'three/addons/controls/TransformControls.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { gunzipSync, strFromU8 } from 'fflate';
+    import { GEOM_GZIP_BASE64 } from './geometry-data.js';
+
+    // GEOM_GZIP_BASE64 ahora se importa desde geometry-data.js
+    function b64ToU8(base64) { const bin = atob(base64); const bytes = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i); return bytes; }
+
+    const container = document.getElementById('app');
+    const IS_TOUCH = matchMedia('(pointer: coarse)').matches || innerWidth <= 760;
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf4f4f1); scene.fog = new THREE.Fog(0xf4f4f1, 18, 52);
+    const camera = new THREE.PerspectiveCamera(IS_TOUCH ? 50 : 45, innerWidth/innerHeight, .1, 100); camera.position.set(IS_TOUCH ? 6.4 : 5.8, IS_TOUCH ? 5.2 : 4.2, IS_TOUCH ? 7.6 : 6.8);
+    const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
+    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.75; container.appendChild(renderer.domElement);
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
+    const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
+    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showZ = false; transform.visible = false; transform.enabled = false; scene.add(transform);
+    transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { lockDepth(selected); snapRotation(selected); if(snapOn) trySnap(selected); } });
+    transform.addEventListener('objectChange', () => { if(selected) lockDepth(selected); });
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 0.8));
+    const key = new THREE.DirectionalLight(0xffffff,2.2); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff,0.6); fill.position.set(-5,4,-3); scene.add(fill);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(90,90), new THREE.MeshStandardMaterial({color:0xf1f1ec, roughness:.82})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+    const grid = new THREE.GridHelper(26,26,0xd9d9d3,0xe8e8e2); grid.position.y=.004; scene.add(grid);
+
+    let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
+    renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
+    renderer.domElement.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
+    const raycaster = new THREE.Raycaster(); const pointer = new THREE.Vector2(); const dragPlane = new THREE.Plane(new THREE.Vector3(0,0,1), -lockedDepthZ); const dragPoint = new THREE.Vector3(); const dragOffset = new THREE.Vector3(); let isDraggingPiece = false; let pointerMoved = false;
+    let audioCtx = null;
+    function playSnapSound() {
+      try {
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioCtx.currentTime;
+        const duration = 0.035;
+        const buffer = audioCtx.createBuffer(1, Math.ceil(audioCtx.sampleRate * duration), audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for(let i=0; i<data.length; i++) {
+          const t = i / data.length;
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 8);
+        }
+        const noise = audioCtx.createBufferSource();
+        const filter = audioCtx.createBiquadFilter();
+        const gain = audioCtx.createGain();
+        noise.buffer = buffer;
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1450, now);
+        filter.Q.setValueAtTime(0.8, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.42, now + 0.002);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        noise.start(now);
+        noise.stop(now + duration);
+      } catch(e) {}
+    }
+
+    function createGlossyMaterial(color) {
+      return new THREE.MeshPhysicalMaterial({ color, metalness, roughness, clearcoat:1, clearcoatRoughness:.06, envMapIntensity:.45, side:THREE.DoubleSide });
+    }
+
+    function getBaseColors() {
+      return [0xf4a7c2,0x124baa,0xf8f6ee,0x0a0a0a];
+    }
+    function getPalette(offset=0) {
+      const base = getBaseColors();
+      return [0,1,2,3].map(i => base[(i+offset)%4]);
+    }
+    function getRandomPalette() {
+      const base = getBaseColors();
+      return [0,1,2,3].map(() => base[Math.floor(Math.random() * base.length)]);
+    }
+
+    function buildGeometry(item) {
+      const v = item.vertices;
+      const f = item.faces;
+      const positions = new Float32Array(f.length * 9);
+      let p = 0;
+      for (let i=0; i<f.length; i++) {
+        const face = f[i];
+        for (let j=0; j<3; j++) {
+          const vert = v[face[j]];
+          positions[p++] = vert[0];
+          positions[p++] = vert[1];
+          positions[p++] = vert[2];
+        }
+      }
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geom.computeVertexNormals();
+      geom.computeBoundingBox();
+      geom.computeBoundingSphere();
+      return geom;
+    }
+
+    function loadRawGeometries() {
+      const raw = strFromU8(gunzipSync(b64ToU8(GEOM_GZIP_BASE64)));
+      const items = JSON.parse(raw);
+      templateGeometries = items.map(buildGeometry);
+      computeSnapConnectorFaces(items);
+    }
+
+    function computeSnapConnectorFaces(items) {
+      // El modulo es un cuarto de anillo. Sus caras de conexion reales son
+      // los dos cortes planos del arco, no los extremos del bounding box.
+      // En el modelo base esas caras son: y minima y x maxima.
+      const verts = [];
+      items.forEach(item => item.vertices.forEach(v => verts.push(new THREE.Vector3(v[0], v[1], v[2]))));
+      if(!verts.length) return;
+      const eps = 0.003;
+      let minY = Infinity, maxX = -Infinity;
+      verts.forEach(v => { if(v.y < minY) minY = v.y; if(v.x > maxX) maxX = v.x; });
+      const bottom = verts.filter(v => Math.abs(v.y - minY) < eps);
+      const right = verts.filter(v => Math.abs(v.x - maxX) < eps);
+      function faceFrom(points, side) {
+        const b = new THREE.Box3().setFromPoints(points);
+        const c = b.getCenter(new THREE.Vector3());
+        if(side === 'bottom') {
+          c.y = minY;
+          return { side, center:new THREE.Vector2(c.x, c.y), normal:new THREE.Vector2(0, -1), length:b.max.x - b.min.x };
+        }
+        c.x = maxX;
+        return { side, center:new THREE.Vector2(c.x, c.y), normal:new THREE.Vector2(1, 0), length:b.max.y - b.min.y };
+      }
+      snapConnectorFaces = [faceFrom(bottom, 'bottom'), faceFrom(right, 'right')];
+    }
+
+    function createModule(offset=0) {
+      const group = new THREE.Group();
+      const palette = getPalette(offset);
+      templateGeometries.forEach((geom, i) => {
+        const mesh = new THREE.Mesh(geom, createGlossyMaterial(palette[i % 4]));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+      });
+      group.userData.isModule = true;
+      group.userData.id = idCounter++;
+      group.userData.colorOffset = offset;
+      group.userData.customPalette = null;
+      return group;
+    }
+
+    function applyPalette(root, offset=0) {
+      const palette = root.userData.customPalette || getPalette(offset);
+      root.children.forEach((mesh, i) => {
+        if(mesh.material) {
+          mesh.material.color.setHex(palette[i % 4]);
+          mesh.material.metalness = metalness;
+          mesh.material.roughness = roughness;
+        }
+      });
+      root.userData.colorOffset = offset;
+    }
+    function randomizeSelectedColors() {
+      if(!selected) return;
+      selected.userData.customPalette = getRandomPalette();
+      applyPalette(selected, selected.userData.colorOffset || 0);
+    }
+
+    function lockDepth(obj) { obj.position.z = lockedDepthZ; }
+    function clampAboveFloor(obj) {
+      const b = new THREE.Box3().setFromObject(obj);
+      if(Number.isFinite(b.min.y) && b.min.y < 0) obj.position.y -= b.min.y;
+    }
+    function settleOnFloor(obj) {
+      const b = new THREE.Box3().setFromObject(obj);
+      if(Number.isFinite(b.min.y)) obj.position.y -= b.min.y;
+    }
+    function getObjectCenterXY(obj) {
+      const b = new THREE.Box3().setFromObject(obj);
+      return new THREE.Vector2((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2);
+    }
+    function snapRotation(obj) { const q=Math.PI/4; obj.rotation.x=0; obj.rotation.y=0; obj.rotation.z=Math.round(obj.rotation.z/q)*q; }
+    function rotateZ(step=1) {
+      if(!selected) return;
+      // Rotar alrededor del centro visible del modulo, no alrededor del origen
+      // importado de la geometria.
+      const before = getObjectCenterXY(selected);
+      selected.rotation.z += step * Math.PI/4;
+      snapRotation(selected);
+      const after = getObjectCenterXY(selected);
+      selected.position.x += before.x - after.x;
+      selected.position.y += before.y - after.y;
+      lockDepth(selected);
+      clampAboveFloor(selected);
+      if(snapOn) trySnap(selected); else resolveOverlaps(selected);
+      updateRotateHud();
+    }
+
+    function findFreePosition(obj) {
+      // Busca en espiral, alrededor de la posicion pedida, el primer lugar
+      // donde el modulo no se superpone con ninguno de los ya existentes.
+      const origin = new THREE.Vector2(obj.position.x, obj.position.y);
+      const test = (x, y) => {
+        obj.position.x = x; obj.position.y = y;
+        lockDepth(obj); settleOnFloor(obj);
+        const b = box2D(obj);
+        return pieces.every(other => !overlaps2D(b, box2D(other)));
+      };
+      if(test(origin.x, origin.y)) return true;
+      const step = 0.55;
+      for(let ring=1; ring<=48; ring++) {
+        const count = ring*8;
+        for(let i=0;i<count;i++) {
+          const angle = (i/count) * Math.PI*2;
+          const r = ring*step;
+          if(test(origin.x + Math.cos(angle)*r, origin.y + Math.sin(angle)*r)) return true;
+        }
+      }
+      test(origin.x, origin.y);
+      return false;
+    }
+    function addPiece(pos=new THREE.Vector3(0,0,0), rot=null, offset=null, avoidOverlap=true) {
+      if(!templateGeometries.length) return;
+      const p = createModule(offset ?? (pieces.length%4));
+      p.position.copy(pos); p.position.z = lockedDepthZ;
+      if(rot) p.rotation.set(...rot); else p.rotation.z=(pieces.length%8)*Math.PI/4; snapRotation(p);
+      scene.add(p); settleOnFloor(p);
+      if(avoidOverlap) findFreePosition(p);
+      pieces.push(p); resolveOverlaps(p); select(p); updateCounter(); return p;
+    }
+
+    function select(obj) { selected=obj; pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { lockDepth(selected); clampAboveFloor(selected); } transform.detach(); updateRotateHud(); }
+    function updateCounter() { document.getElementById('counter').textContent = `${pieces.length} módulo${pieces.length===1?'':'s'}`; }
+    function duplicateSelected() { if(!selected) return; addPiece(selected.position.clone().add(new THREE.Vector3(.75,.25,0)), [selected.rotation.x,selected.rotation.y,selected.rotation.z], selected.userData.colorOffset || 0); }
+    function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); selected=null; updateCounter(); }
+    function shuffleColors() { if(!selected) return; selected.userData.customPalette = null; applyPalette(selected, ((selected.userData.colorOffset||0)+1)%4); }
+    function getSnapFaces(obj) {
+      // Devuelve solamente las dos caras planas reales de conexion,
+      // transformadas al plano de trabajo X/Y. No usa el bounding box,
+      // porque el arco hace que sus extremos curvos contaminen el snap.
+      const angle = obj.rotation.z;
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+      return snapConnectorFaces.map(f => {
+        const cx = f.center.x * cos - f.center.y * sin + obj.position.x;
+        const cy = f.center.x * sin + f.center.y * cos + obj.position.y;
+        const nx = f.normal.x * cos - f.normal.y * sin;
+        const ny = f.normal.x * sin + f.normal.y * cos;
+        return { side:f.side, center:new THREE.Vector2(cx, cy), normal:new THREE.Vector2(nx, ny).normalize(), length:f.length };
+      });
+    }
+    function box2D(obj) {
+      const b = new THREE.Box3().setFromObject(obj);
+      return { minX:b.min.x, maxX:b.max.x, minY:b.min.y, maxY:b.max.y, cx:(b.min.x+b.max.x)/2, cy:(b.min.y+b.max.y)/2 };
+    }
+    function overlaps2D(a,b,pad=.035) {
+      return a.minX < b.maxX - pad && a.maxX > b.minX + pad && a.minY < b.maxY - pad && a.maxY > b.minY + pad;
+    }
+    function resolveOverlaps(moving) {
+      // Evita que dos modulos queden encimados por error.
+      // Empuja solo la pieza activa, en el eje de menor penetracion.
+      for(let iter=0; iter<10; iter++) {
+        let changed = false;
+        let mb = box2D(moving);
+        for(const other of pieces) {
+          if(other === moving) continue;
+          const ob = box2D(other);
+          if(!overlaps2D(mb, ob)) continue;
+          const pushLeft = ob.minX - mb.maxX;
+          const pushRight = ob.maxX - mb.minX;
+          const pushDown = ob.minY - mb.maxY;
+          const pushUp = ob.maxY - mb.minY;
+          const options = [
+            { axis:'x', value:pushLeft }, { axis:'x', value:pushRight },
+            { axis:'y', value:pushDown }, { axis:'y', value:pushUp }
+          ].sort((u,v)=>Math.abs(u.value)-Math.abs(v.value));
+          const push = options[0];
+          if(push.axis === 'x') moving.position.x += push.value + Math.sign(push.value || 1) * 0.045;
+          else moving.position.y += push.value + Math.sign(push.value || 1) * 0.045;
+          lockDepth(moving);
+          clampAboveFloor(moving);
+          changed = true;
+          mb = box2D(moving);
+        }
+        if(!changed) return false;
+      }
+      return true;
+    }
+    function trySnap(moving) {
+      if(!snapOn || pieces.length<2) { resolveOverlaps(moving); return false; }
+
+      snapRotation(moving);
+      lockDepth(moving);
+      clampAboveFloor(moving);
+
+      const movingFaces = getSnapFaces(moving);
+      let best = null;
+
+      for(const other of pieces) if(other !== moving) {
+        const otherFaces = getSnapFaces(other);
+        for(const mf of movingFaces) for(const oface of otherFaces) {
+          // Solo conectores enfrentados: las normales deben apuntar en sentidos opuestos.
+          const facing = mf.normal.dot(oface.normal) < -0.985;
+          if(!facing) continue;
+
+          // Probar la posicion exacta donde ambas caras planas coinciden.
+          const dx = oface.center.x - mf.center.x;
+          const dy = oface.center.y - mf.center.y;
+          const pull = Math.hypot(dx, dy);
+          if(pull > 1.05) continue;
+
+          // Penaliza caras de tamaño distinto y pequeños desfasajes tangenciales.
+          const tangent = new THREE.Vector2(-oface.normal.y, oface.normal.x);
+          const tangentMiss = Math.abs(new THREE.Vector2(dx, dy).dot(tangent));
+          const normalMiss = Math.abs(new THREE.Vector2(dx, dy).dot(oface.normal));
+          const lengthPenalty = Math.abs(mf.length - oface.length) * 0.18;
+          const score = normalMiss + tangentMiss * 0.75 + lengthPenalty;
+          if(!best || score < best.score) best = { dx, dy, pull, score };
+        }
+      }
+
+      if(best) {
+        if(best.pull > 0.002) {
+          moving.position.x += best.dx;
+          moving.position.y += best.dy;
+          lockDepth(moving);
+          clampAboveFloor(moving);
+          playSnapSound();
+        }
+        // No aplicar antisolape despues de un snap valido: el bounding box del
+        // cuarto de anillo puede superponerse aunque las caras planas esten bien unidas.
+        return true;
+      }
+
+      resolveOverlaps(moving);
+      return false;
+    }
+    function saveState() {
+      const data = pieces.map(p=>({ position:p.position.toArray(), rotation:[p.rotation.x,p.rotation.y,p.rotation.z], colorOffset:p.userData.colorOffset||0, customPalette:p.userData.customPalette||null }));
+      localStorage.setItem('loop-sandbox-save', JSON.stringify(data));
+    }
+    function loadState() {
+      const raw = localStorage.getItem('loop-sandbox-save'); if(!raw) return;
+      clearAll();
+      JSON.parse(raw).forEach(d=>{
+        const p = addPiece(new THREE.Vector3(...d.position), d.rotation, d.colorOffset, false);
+        if(p && d.customPalette) { p.userData.customPalette = d.customPalette; applyPalette(p, p.userData.colorOffset || 0); }
+      });
+      if(pieces[0]) select(pieces[0]);
+    }
+    function clearAll() { pieces.forEach(p=>scene.remove(p)); pieces=[]; selected=null; transform.detach(); updateCounter(); }
+    function screenShot() { const a=document.createElement('a'); a.href=renderer.domElement.toDataURL('image/png'); a.download='loop-sandbox-captura.png'; a.click(); }
+    function updateRotateHud() {
+      const hud = document.getElementById('rotateHud');
+      if(!selected) { hud.style.display = 'none'; return; }
+      const b = new THREE.Box3().setFromObject(selected);
+      const p = b.getCenter(new THREE.Vector3());
+      p.y = b.max.y + 0.38;
+      p.project(camera);
+      const x = (p.x * 0.5 + 0.5) * innerWidth;
+      const y = (-p.y * 0.5 + 0.5) * innerHeight;
+      hud.style.left = x + 'px';
+      hud.style.top = y + 'px';
+      hud.style.display = 'flex';
+    }
+
+    try {
+      transform.showX = false; transform.showY = false; transform.showZ = false; transform.visible = false; transform.enabled = false;
+      loadRawGeometries();
+      for(let i=0; i<3; i++) {
+        const angle = Math.random()*Math.PI*2;
+        const dist = Math.random()*1.4;
+        const startPos = new THREE.Vector3(Math.cos(angle)*dist, 0, 0);
+        const rotStep = Math.floor(Math.random()*8);
+        const piece = addPiece(startPos, [0,0,rotStep*Math.PI/4], Math.floor(Math.random()*4));
+        if(piece) { piece.userData.customPalette = getRandomPalette(); applyPalette(piece, piece.userData.colorOffset || 0); }
+      }
+      if(pieces[0]) select(pieces[0]);
+      updateCounter();
+    } catch(err) {
+      const box = document.getElementById('errorBox'); box.style.display='block'; box.textContent='No se pudo reconstruir la geometría cruda.';
+      console.error(err);
+    }
+
+    function updatePointer(event) {
+      pointer.x = (event.clientX / innerWidth) * 2 - 1;
+      pointer.y = -(event.clientY / innerHeight) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+    }
+    renderer.domElement.addEventListener('pointerdown', (event)=>{
+      event.preventDefault();
+      updatePointer(event);
+      const hits = raycaster.intersectObjects(pieces, true);
+      if(hits.length) {
+        let obj = hits[0].object;
+        while(obj && !obj.userData.isModule) obj = obj.parent;
+        if(obj) {
+          select(obj);
+          isDraggingPiece = true;
+          pointerMoved = false;
+          orbit.enabled = false;
+          renderer.domElement.setPointerCapture?.(event.pointerId);
+          dragPlane.constant = -lockedDepthZ;
+          if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) dragOffset.copy(selected.position).sub(dragPoint);
+        }
+      } else { select(null); }
+    });
+    renderer.domElement.addEventListener('pointermove', (event)=>{
+      if(isDraggingPiece) event.preventDefault();
+      if(!isDraggingPiece || !selected) return;
+      pointerMoved = true;
+      updatePointer(event);
+      if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+        selected.position.copy(dragPoint).add(dragOffset);
+        lockDepth(selected);
+        clampAboveFloor(selected);
+        updateRotateHud();
+      }
+    });
+    renderer.domElement.addEventListener('pointerup', (event)=>{
+      event.preventDefault();
+      if(!isDraggingPiece) return;
+      isDraggingPiece = false;
+      orbit.enabled = true;
+      renderer.domElement.releasePointerCapture?.(event.pointerId);
+      if(selected) { lockDepth(selected); clampAboveFloor(selected); snapRotation(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); }
+      updateRotateHud();
+    });
+    renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; });
+
+    document.getElementById('add').onclick = ()=>addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0));
+    document.getElementById('dup').onclick = duplicateSelected;
+    document.getElementById('del').onclick = deleteSelected;
+    document.getElementById('hudRotL').onclick = (e)=>{ e.stopPropagation(); rotateZ(-1); };
+    document.getElementById('hudRotR').onclick = (e)=>{ e.stopPropagation(); rotateZ(1); };
+    document.getElementById('shuffle').onclick = shuffleColors;
+    document.getElementById('randomColor').onclick = randomizeSelectedColors;
+    document.getElementById('clear').onclick = clearAll;
+    document.getElementById('shot').onclick = screenShot;
+    document.getElementById('snap').onclick = ()=>{ snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; };
+
+
+    addEventListener('keydown', (e)=>{
+      if(e.target.tagName==='INPUT') return;
+      if(e.key==='a' || e.key==='A') addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0));
+      if(e.key==='d' || e.key==='D') duplicateSelected();
+      if(e.key==='Delete' || e.key==='Backspace') deleteSelected();
+      if(e.key==='s' || e.key==='S') { snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; }
+      if(e.key==='q' || e.key==='Q') rotateZ(-1);
+      if(e.key==='e' || e.key==='E') rotateZ(1);
+    });
+
+    (function setupCamPad(){
+      const camPad = document.getElementById('camPad');
+      const spherical = new THREE.Spherical();
+      let active = false, lastX = 0, lastY = 0;
+      const rotateSpeedPad = IS_TOUCH ? 0.0085 : 0.0065;
+      function start(e) {
+        e.preventDefault();
+        active = true; lastX = e.clientX; lastY = e.clientY;
+        camPad.setPointerCapture?.(e.pointerId);
+        orbit.enabled = false;
+        spherical.setFromVector3(camera.position.clone().sub(orbit.target));
+      }
+      function move(e) {
+        if(!active) return;
+        e.preventDefault();
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        spherical.theta -= dx * rotateSpeedPad;
+        spherical.phi -= dy * rotateSpeedPad;
+        spherical.phi = Math.max(0.12, Math.min(Math.PI - 0.12, spherical.phi));
+        camera.position.setFromSpherical(spherical).add(orbit.target);
+        camera.lookAt(orbit.target);
+      }
+      function end() { active = false; orbit.enabled = true; }
+      camPad.addEventListener('pointerdown', start);
+      camPad.addEventListener('pointermove', move);
+      camPad.addEventListener('pointerup', end);
+      camPad.addEventListener('pointercancel', end);
+    })();
+
+    addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); });
+    renderer.setAnimationLoop(()=>{ orbit.update(); updateRotateHud(); renderer.render(scene,camera); });
+  </script>
+</body>
+</html>
