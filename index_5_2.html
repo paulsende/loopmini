@@ -162,7 +162,7 @@
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf4f4f1); scene.fog = new THREE.Fog(0xf4f4f1, 18, 52);
     const camera = new THREE.PerspectiveCamera(IS_TOUCH ? 50 : 45, innerWidth/innerHeight, .1, 100); camera.position.set(IS_TOUCH ? 6.4 : 5.8, IS_TOUCH ? 5.2 : 4.2, IS_TOUCH ? 7.6 : 6.8);
     const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
-    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; container.appendChild(renderer.domElement);
+    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.75; container.appendChild(renderer.domElement);
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
