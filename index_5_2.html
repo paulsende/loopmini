@@ -170,7 +170,7 @@
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { lockDepth(selected); snapRotation(selected); if(snapOn) trySnap(selected); } });
     transform.addEventListener('objectChange', () => { if(selected) lockDepth(selected); });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 2.1));
     const key = new THREE.DirectionalLight(0xffffff,3.8); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
     const fill = new THREE.DirectionalLight(0xffffff,1.5); fill.position.set(-5,4,-3); scene.add(fill);
