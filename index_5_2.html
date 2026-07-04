@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>LOOP Sandbox Mobile</title>
+  <title>LOOP Sandbox</title>
   <style>
     html, body { margin:0; height:100%; overflow:hidden; font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#f4f4f1; }
     #app { width:100vw; height:100vh; touch-action:none; }
@@ -150,7 +150,6 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { TransformControls } from 'three/addons/controls/TransformControls.js';
-    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     import { gunzipSync, strFromU8 } from 'fflate';
     import { GEOM_GZIP_BASE64 } from './geometry-data.js';
 
@@ -159,25 +158,30 @@
 
     const container = document.getElementById('app');
     const IS_TOUCH = matchMedia('(pointer: coarse)').matches || innerWidth <= 760;
-    const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf4f4f1); scene.fog = new THREE.Fog(0xf4f4f1, 18, 52);
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf0f0ec); scene.fog = new THREE.Fog(0xf0f0ec, 38, 86);
     const camera = new THREE.PerspectiveCamera(IS_TOUCH ? 50 : 45, innerWidth/innerHeight, .1, 100); camera.position.set(IS_TOUCH ? 6.4 : 5.8, IS_TOUCH ? 5.2 : 4.2, IS_TOUCH ? 7.6 : 6.8);
     const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
-    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.56; container.appendChild(renderer.domElement);
+    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.LinearToneMapping; renderer.toneMappingExposure=0.82; container.appendChild(renderer.domElement);
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
+    // Sin RoomEnvironment: ese HDR blanco lavaba los colores y los negros.
+    scene.environment = null;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
     const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showZ = false; transform.visible = false; transform.enabled = false; scene.add(transform);
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { lockDepth(selected); snapRotation(selected); if(snapOn) trySnap(selected); } });
     transform.addEventListener('objectChange', () => { if(selected) lockDepth(selected); });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.18));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 0.32));
-    const key = new THREE.DirectionalLight(0xffffff,1.35); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff,0.18); fill.position.set(-5,4,-3); scene.add(fill);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.10));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8e8e88, 0.22));
+
+    // Iluminación tipo producto: menos ambiente plano, más contraste y brillos localizados.
+    const key = new THREE.DirectionalLight(0xffffff,2.25); key.position.set(4.5,7.5,4.5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff,0.22); fill.position.set(-5,3,-4); scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffffff,0.95); rim.position.set(-4,5,7); scene.add(rim);
     // Luz rasante para que se lea el bajo relieve del logo en las caras planas
-    const relief = new THREE.DirectionalLight(0xffffff,1.35); relief.position.set(-3,1.15,6); scene.add(relief);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(90,90), new THREE.MeshStandardMaterial({color:0xe9e9e2, roughness:.86})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
-    const grid = new THREE.GridHelper(26,26,0xd9d9d3,0xe8e8e2); grid.position.y=.004; scene.add(grid);
+    const relief = new THREE.DirectionalLight(0xffffff,2.30); relief.position.set(-3,1.05,6); scene.add(relief);
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(90,90), new THREE.MeshStandardMaterial({color:0xe2e1da, roughness:.88})); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+    const grid = new THREE.GridHelper(26,26,0xcacac2,0xd9d8d0); grid.position.y=.004; scene.add(grid);
 
     let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.30, lockedDepthZ=0, snapConnectorFaces=[];
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
@@ -218,15 +222,15 @@
         color,
         metalness,
         roughness,
-        clearcoat:.62,
-        clearcoatRoughness:.16,
-        envMapIntensity:.24,
+        clearcoat:.72,
+        clearcoatRoughness:.13,
+        envMapIntensity:0,
         side:THREE.DoubleSide
       });
     }
 
     function getBaseColors() {
-      return [0xff6fae,0x005bd8,0xf8f6ee,0x050505];
+      return [0xf4a7c2,0x124baa,0xf8f6ee,0x0a0a0a];
     }
     function getPalette(offset=0) {
       const base = getBaseColors();
