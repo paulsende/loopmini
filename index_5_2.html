@@ -117,6 +117,7 @@
       <button class="secondary" id="dup">Duplicar</button>
       <button class="secondary" id="del">Borrar</button>
     </div>
+    <button class="secondary wide" id="xformMode" style="margin-top:2px;">Gizmo: Mover</button>
     <div class="grid" style="margin-top:14px;">
       <button class="secondary" id="shuffle">Rotar colores</button>
       <button class="secondary" id="randomColor">Color random</button>
@@ -168,9 +169,9 @@
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
-    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showZ = false; transform.visible = false; transform.enabled = false; scene.add(transform);
-    transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { lockDepth(selected); snapRotation(selected); if(snapOn) trySnap(selected); } });
-    transform.addEventListener('objectChange', () => { if(selected) lockDepth(selected); });
+    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = true; scene.add(transform);
+    transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { clampAboveFloor(selected); if(transform.getMode()==='translate') { if(snapOn) trySnap(selected); else resolveOverlaps(selected); } updateRotateHud(); } });
+    transform.addEventListener('objectChange', () => { updateRotateHud(); });
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.12));
     scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 0.22));
@@ -324,7 +325,7 @@
       const b = new THREE.Box3().setFromObject(obj);
       return new THREE.Vector2((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2);
     }
-    function snapRotation(obj) { const q=Math.PI/4; obj.rotation.x=0; obj.rotation.y=0; obj.rotation.z=Math.round(obj.rotation.z/q)*q; }
+    function snapRotation(obj) { const q=Math.PI/4; obj.rotation.z=Math.round(obj.rotation.z/q)*q; }
     function rotateZ(step=1) {
       if(!selected) return;
       const before = getObjectCenterXY(selected);
@@ -333,7 +334,6 @@
       const after = getObjectCenterXY(selected);
       selected.position.x += before.x - after.x;
       selected.position.y += before.y - after.y;
-      lockDepth(selected);
       clampAboveFloor(selected);
       if(snapOn) trySnap(selected); else resolveOverlaps(selected);
       updateRotateHud();
@@ -370,7 +370,7 @@
       pieces.push(p); resolveOverlaps(p); select(p); updateCounter(); return p;
     }
 
-    function select(obj) { selected=obj; pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { lockDepth(selected); clampAboveFloor(selected); } transform.detach(); updateRotateHud(); }
+    function select(obj) { selected=obj; pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { clampAboveFloor(selected); transform.attach(selected); } else { transform.detach(); } updateRotateHud(); }
     function updateCounter() { document.getElementById('counter').textContent = `${pieces.length} módulo${pieces.length===1?'':'s'}`; }
     function duplicateSelected() { if(!selected) return; addPiece(selected.position.clone().add(new THREE.Vector3(.75,.25,0)), [selected.rotation.x,selected.rotation.y,selected.rotation.z], selected.userData.colorOffset || 0); }
     function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); selected=null; updateCounter(); }
@@ -412,7 +412,6 @@
           const push = options[0];
           if(push.axis === 'x') moving.position.x += push.value + Math.sign(push.value || 1) * 0.045;
           else moving.position.y += push.value + Math.sign(push.value || 1) * 0.045;
-          lockDepth(moving);
           clampAboveFloor(moving);
           changed = true;
           mb = box2D(moving);
@@ -422,10 +421,10 @@
       return true;
     }
     function trySnap(moving) {
-      if(!snapOn || pieces.length<2) { resolveOverlaps(moving); return false; }
+      const isFlat = Math.abs(moving.rotation.x) < 0.01 && Math.abs(moving.rotation.y) < 0.01;
+      if(!snapOn || pieces.length<2 || !isFlat) { resolveOverlaps(moving); return false; }
 
       snapRotation(moving);
-      lockDepth(moving);
       clampAboveFloor(moving);
 
       const movingFaces = getSnapFaces(moving);
@@ -455,7 +454,6 @@
         if(best.pull > 0.002) {
           moving.position.x += best.dx;
           moving.position.y += best.dy;
-          lockDepth(moving);
           clampAboveFloor(moving);
           playSnapSound();
         }
@@ -495,7 +493,7 @@
     }
 
     try {
-      transform.showX = false; transform.showY = false; transform.showZ = false; transform.visible = false; transform.enabled = false;
+      transform.setMode('translate');
       loadRawGeometries();
       for(let i=0; i<3; i++) {
         const angle = Math.random()*Math.PI*2;
@@ -518,6 +516,7 @@
       raycaster.setFromCamera(pointer, camera);
     }
     renderer.domElement.addEventListener('pointerdown', (event)=>{
+      if(transform.dragging) return;
       event.preventDefault();
       updatePointer(event);
       const hits = raycaster.intersectObjects(pieces, true);
@@ -536,24 +535,25 @@
       } else { select(null); }
     });
     renderer.domElement.addEventListener('pointermove', (event)=>{
+      if(transform.dragging) return;
       if(isDraggingPiece) event.preventDefault();
       if(!isDraggingPiece || !selected) return;
       pointerMoved = true;
       updatePointer(event);
       if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
         selected.position.copy(dragPoint).add(dragOffset);
-        lockDepth(selected);
         clampAboveFloor(selected);
         updateRotateHud();
       }
     });
     renderer.domElement.addEventListener('pointerup', (event)=>{
+      if(transform.dragging) return;
       event.preventDefault();
       if(!isDraggingPiece) return;
       isDraggingPiece = false;
       orbit.enabled = true;
       renderer.domElement.releasePointerCapture?.(event.pointerId);
-      if(selected) { lockDepth(selected); clampAboveFloor(selected); snapRotation(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); }
+      if(selected) { clampAboveFloor(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); }
       updateRotateHud();
     });
     renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; });
@@ -568,6 +568,11 @@
     document.getElementById('clear').onclick = clearAll;
     document.getElementById('shot').onclick = screenShot;
     document.getElementById('snap').onclick = ()=>{ snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; };
+    document.getElementById('xformMode').onclick = ()=>{
+      const next = transform.getMode()==='translate' ? 'rotate' : 'translate';
+      transform.setMode(next);
+      document.getElementById('xformMode').textContent = `Gizmo: ${next==='translate' ? 'Mover' : 'Rotar'}`;
+    };
 
 
     addEventListener('keydown', (e)=>{
@@ -578,6 +583,7 @@
       if(e.key==='s' || e.key==='S') { snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; }
       if(e.key==='q' || e.key==='Q') rotateZ(-1);
       if(e.key==='e' || e.key==='E') rotateZ(1);
+      if(e.key==='r' || e.key==='R') document.getElementById('xformMode').click();
     });
 
     (function setupCamPad(){
