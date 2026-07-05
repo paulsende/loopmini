@@ -164,18 +164,18 @@
     scene.fog = null;
     const camera = new THREE.PerspectiveCamera(IS_TOUCH ? 50 : 45, innerWidth/innerHeight, .1, 100); camera.position.set(IS_TOUCH ? 6.4 : 5.8, IS_TOUCH ? 5.2 : 4.2, IS_TOUCH ? 7.6 : 6.8);
     const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
-    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.40; renderer.setClearColor(0xffffff, 1); container.appendChild(renderer.domElement);
+    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; renderer.setClearColor(0xffffff, 1); container.appendChild(renderer.domElement);
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.012).texture;
+    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
     const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showZ = false; transform.visible = false; transform.enabled = false; scene.add(transform);
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { lockDepth(selected); snapRotation(selected); if(snapOn) trySnap(selected); } });
     transform.addEventListener('objectChange', () => { if(selected) lockDepth(selected); });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 0.45));
-    const key = new THREE.DirectionalLight(0xffffff,1.35); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff,0.25); fill.position.set(-5,4,-3); scene.add(fill);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 2.1));
+    const key = new THREE.DirectionalLight(0xffffff,3.8); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff,1.5); fill.position.set(-5,4,-3); scene.add(fill);
 
     let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
@@ -257,9 +257,6 @@
     }
 
     function computeSnapConnectorFaces(items) {
-      // El modulo es un cuarto de anillo. Sus caras de conexion reales son
-      // los dos cortes planos del arco, no los extremos del bounding box.
-      // En el modelo base esas caras son: y minima y x maxima.
       const verts = [];
       items.forEach(item => item.vertices.forEach(v => verts.push(new THREE.Vector3(v[0], v[1], v[2]))));
       if(!verts.length) return;
@@ -330,8 +327,6 @@
     function snapRotation(obj) { const q=Math.PI/4; obj.rotation.x=0; obj.rotation.y=0; obj.rotation.z=Math.round(obj.rotation.z/q)*q; }
     function rotateZ(step=1) {
       if(!selected) return;
-      // Rotar alrededor del centro visible del modulo, no alrededor del origen
-      // importado de la geometria.
       const before = getObjectCenterXY(selected);
       selected.rotation.z += step * Math.PI/4;
       snapRotation(selected);
@@ -345,8 +340,6 @@
     }
 
     function findFreePosition(obj) {
-      // Busca en espiral, alrededor de la posicion pedida, el primer lugar
-      // donde el modulo no se superpone con ninguno de los ya existentes.
       const origin = new THREE.Vector2(obj.position.x, obj.position.y);
       const test = (x, y) => {
         obj.position.x = x; obj.position.y = y;
@@ -383,9 +376,6 @@
     function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); selected=null; updateCounter(); }
     function shuffleColors() { if(!selected) return; selected.userData.customPalette = null; applyPalette(selected, ((selected.userData.colorOffset||0)+1)%4); }
     function getSnapFaces(obj) {
-      // Devuelve solamente las dos caras planas reales de conexion,
-      // transformadas al plano de trabajo X/Y. No usa el bounding box,
-      // porque el arco hace que sus extremos curvos contaminen el snap.
       const angle = obj.rotation.z;
       const cos = Math.cos(angle), sin = Math.sin(angle);
       return snapConnectorFaces.map(f => {
@@ -404,8 +394,6 @@
       return a.minX < b.maxX - pad && a.maxX > b.minX + pad && a.minY < b.maxY - pad && a.maxY > b.minY + pad;
     }
     function resolveOverlaps(moving) {
-      // Evita que dos modulos queden encimados por error.
-      // Empuja solo la pieza activa, en el eje de menor penetracion.
       for(let iter=0; iter<10; iter++) {
         let changed = false;
         let mb = box2D(moving);
@@ -446,17 +434,14 @@
       for(const other of pieces) if(other !== moving) {
         const otherFaces = getSnapFaces(other);
         for(const mf of movingFaces) for(const oface of otherFaces) {
-          // Solo conectores enfrentados: las normales deben apuntar en sentidos opuestos.
           const facing = mf.normal.dot(oface.normal) < -0.985;
           if(!facing) continue;
 
-          // Probar la posicion exacta donde ambas caras planas coinciden.
           const dx = oface.center.x - mf.center.x;
           const dy = oface.center.y - mf.center.y;
           const pull = Math.hypot(dx, dy);
           if(pull > 1.05) continue;
 
-          // Penaliza caras de tamaño distinto y pequeños desfasajes tangenciales.
           const tangent = new THREE.Vector2(-oface.normal.y, oface.normal.x);
           const tangentMiss = Math.abs(new THREE.Vector2(dx, dy).dot(tangent));
           const normalMiss = Math.abs(new THREE.Vector2(dx, dy).dot(oface.normal));
@@ -474,8 +459,6 @@
           clampAboveFloor(moving);
           playSnapSound();
         }
-        // No aplicar antisolape despues de un snap valido: el bounding box del
-        // cuarto de anillo puede superponerse aunque las caras planas esten bien unidas.
         return true;
       }
 
@@ -599,26 +582,30 @@
 
     (function setupCamPad(){
       const camPad = document.getElementById('camPad');
-      const spherical = new THREE.Spherical();
       let active = false, lastX = 0, lastY = 0;
-      const rotateSpeedPad = IS_TOUCH ? 0.0085 : 0.0065;
+      const panSpeedPad = IS_TOUCH ? 0.0022 : 0.0016;
       function start(e) {
         e.preventDefault();
         active = true; lastX = e.clientX; lastY = e.clientY;
         camPad.setPointerCapture?.(e.pointerId);
         orbit.enabled = false;
-        spherical.setFromVector3(camera.position.clone().sub(orbit.target));
       }
       function move(e) {
         if(!active) return;
         e.preventDefault();
         const dx = e.clientX - lastX, dy = e.clientY - lastY;
         lastX = e.clientX; lastY = e.clientY;
-        spherical.theta -= dx * rotateSpeedPad;
-        spherical.phi -= dy * rotateSpeedPad;
-        spherical.phi = Math.max(0.12, Math.min(Math.PI - 0.12, spherical.phi));
-        camera.position.setFromSpherical(spherical).add(orbit.target);
-        camera.lookAt(orbit.target);
+        // Traslada la cámara y su punto de mira juntos, a lo largo de los
+        // ejes locales de la cámara, en vez de rotar alrededor del target.
+        const distance = camera.position.distanceTo(orbit.target);
+        const speed = distance * panSpeedPad;
+        const xAxis = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+        const yAxis = new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+        const move = new THREE.Vector3()
+          .addScaledVector(xAxis, -dx * speed)
+          .addScaledVector(yAxis, dy * speed);
+        camera.position.add(move);
+        orbit.target.add(move);
       }
       function end() { active = false; orbit.enabled = true; }
       camPad.addEventListener('pointerdown', start);
