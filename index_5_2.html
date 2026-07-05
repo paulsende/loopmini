@@ -164,7 +164,7 @@
     scene.fog = null;
     const camera = new THREE.PerspectiveCamera(IS_TOUCH ? 50 : 45, innerWidth/innerHeight, .1, 100); camera.position.set(IS_TOUCH ? 6.4 : 5.8, IS_TOUCH ? 5.2 : 4.2, IS_TOUCH ? 7.6 : 6.8);
     const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
-    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; renderer.setClearColor(0xffffff, 1); container.appendChild(renderer.domElement);
+    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.95; renderer.setClearColor(0xffffff, 1); container.appendChild(renderer.domElement);
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
@@ -172,10 +172,10 @@
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { lockDepth(selected); snapRotation(selected); if(snapOn) trySnap(selected); } });
     transform.addEventListener('objectChange', () => { if(selected) lockDepth(selected); });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 2.1));
-    const key = new THREE.DirectionalLight(0xffffff,3.8); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff,1.5); fill.position.set(-5,4,-3); scene.add(fill);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff,2.6); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
+    const fill = new THREE.DirectionalLight(0xffffff,0.55); fill.position.set(-5,4,-3); scene.add(fill);
 
     let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
