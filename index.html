@@ -614,6 +614,7 @@
         // Los 3 módulos arrancan con la misma rotación en X: 90°.
         p.rotation.x = Math.PI;
         p.rotation.y = 0;
+        // Primera posición random: solo 0° o 90° en eje Z.
         p.rotation.z = Math.random() < 0.5 ? 0 : Math.PI / 2;
         normalizeRotation(p);
 
@@ -740,6 +741,7 @@
     });
     renderer.domElement.addEventListener('pointermove', (event)=>{
       if(transform.dragging) return;
+
       if(!isDraggingPiece) {
         updatePointer(event);
         const hits = raycaster.intersectObjects(pieces, true);
@@ -756,6 +758,7 @@
         }
         return;
       }
+
       event.preventDefault();
       if(!selected) return;
       pointerMoved = true;
