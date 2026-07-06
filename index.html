@@ -9,11 +9,13 @@
     #app { width:100vw; height:100vh; touch-action:none; }
     canvas { touch-action:none; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
     .panel { position:fixed; left:18px; top:18px; width:314px; background:rgba(255,255,255,.82); backdrop-filter:blur(18px); border:1px solid rgba(0,0,0,.08); border-radius:18px; padding:14px; box-shadow:0 20px 60px rgba(0,0,0,.08); color:#151515; }
-    h1 { margin:0 0 4px; font-size:15px; font-weight:650; letter-spacing:-.02em; }
+    h1 { margin:0 0 4px; font-size:13px; font-weight:650; letter-spacing:-.02em; line-height:1.15; }
     .sub { font-size:11px; line-height:1.35; color:#555; margin-bottom:12px; }
     button { appearance:none; border:0; border-radius:12px; padding:9px 10px; font-size:12px; background:#171717; color:white; cursor:pointer; }
     button.secondary { background:rgba(0,0,0,.07); color:#111; }
     button.active { outline:2px solid rgba(0,0,0,.55); }
+    button.toggleOn { background:#f4a7c2; color:#111; }
+    button.toggleOff { background:rgba(0,0,0,.13); color:#111; }
     button:active { transform:translateY(1px); }
     .grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:9px; }
     .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; margin-bottom:9px; }
@@ -80,7 +82,7 @@
         padding:8px;
         background:rgba(255,255,255,.90);
       }
-      h1 { font-size:12px; margin:0 0 6px; }
+      h1 { font-size:11px; margin:0 0 6px; line-height:1.15; }
       .sub, label, .colors { display:none !important; }
       button {
         min-height:36px;
@@ -123,7 +125,7 @@
   <div id="introLoader"><div class="introTitle">LOOP MINI DIGITAL PLAYGROUND<span class="mobileTitleBreak"></span> X PAUL SENDE<span class="introMini">cargando módulos</span><div class="introProgressWrap"><div class="introProgressBar" id="introProgressBar"></div></div><div class="introPercent" id="introPercent">0%</div></div></div>
   <div id="app"></div>
   <div class="panel">
-    <h1>LOOP Sandbox</h1>
+    <h1>LOOP MINI PLAYGROUND X PAUL SENDE</h1>
     <button class="wide" id="add">Agregar módulo</button>
     <div class="grid">
       <button class="secondary" id="dup">Duplicar</button>
@@ -133,8 +135,8 @@
       <button class="secondary" id="shuffle">Rotar colores</button>
       <button class="secondary" id="randomColor">Color random</button>
     </div>
-    <button class="secondary wide" id="snap" style="margin-top:14px;">Snap: ON</button>
-    <button class="secondary wide" id="zMove">EJE Z MOVE: OFF</button>
+    <button class="secondary wide toggleOn" id="snap" style="margin-top:14px;">Snap: ON</button>
+    <button class="secondary wide toggleOff" id="zMove">EJE Z MOVE: OFF</button>
     <div class="grid" style="margin-top:14px;">
       <button class="secondary" id="clear">Limpiar</button>
       <button class="secondary" id="shot">Captura</button>
@@ -346,7 +348,7 @@
       const qZ = Math.PI / 4;
       const qX = Math.PI / 2;
       obj.rotation.x = Math.round(obj.rotation.x / qX) * qX; // X cada 90°, acumulativo
-      obj.rotation.y = 0;              // Y queda bloqueado
+      obj.rotation.y = Math.round(obj.rotation.y / qX) * qX; // Y cada 90°
       obj.rotation.z = Math.round(obj.rotation.z / qZ) * qZ; // Z cada 45°
     }
     function snapRotation(obj) { normalizeRotation(obj); }
@@ -591,7 +593,7 @@
 
         // Los 3 módulos arrancan con la misma rotación en X: 90°.
         p.rotation.x = Math.PI;
-        p.rotation.y = 0;
+        p.rotation.y = Math.random() < 0.5 ? 0 : Math.PI / 2;
         p.rotation.z = Math.floor(Math.random() * 8) * Math.PI / 4;
         normalizeRotation(p);
 
@@ -750,11 +752,22 @@
     document.getElementById('randomColor').onclick = randomizeSelectedColors;
     document.getElementById('clear').onclick = clearAll;
     document.getElementById('shot').onclick = screenShot;
-    document.getElementById('snap').onclick = ()=>{ snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; };
+    function setToggleButtonState(button, isOn) {
+      button.classList.toggle('toggleOn', isOn);
+      button.classList.toggle('toggleOff', !isOn);
+    }
+    document.getElementById('snap').onclick = ()=>{
+      snapOn = !snapOn;
+      const btn = document.getElementById('snap');
+      btn.textContent = `Snap: ${snapOn ? 'ON' : 'OFF'}`;
+      setToggleButtonState(btn, snapOn);
+    };
 
     function toggleZMove() {
       zMoveOn = !zMoveOn;
-      document.getElementById('zMove').textContent = `EJE Z MOVE: ${zMoveOn ? 'ON' : 'OFF'}`;
+      const btn = document.getElementById('zMove');
+      btn.textContent = `EJE Z MOVE: ${zMoveOn ? 'ON' : 'OFF'}`;
+      setToggleButtonState(btn, zMoveOn);
       transform.showZ = zMoveOn;
       if(!zMoveOn) {
         pieces.forEach(p => lockDepth(p));
