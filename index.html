@@ -567,30 +567,40 @@
       const loader = document.getElementById('introLoader');
       if(loader) loader.classList.add('hidden');
     }
-    function buildIntroTarget(existingBoxes, obj, spreadX, spreadZ) {
-      // Busca una posición final que no intersecte a las anteriores.
-      // No hay piso visible, pero usamos Y como altura de composición.
-      for(let attempt=0; attempt<90; attempt++) {
-        const x = (Math.random() - 0.5) * spreadX;
-        const y = (IS_TOUCH ? 1.15 : 0.85) + Math.random() * (IS_TOUCH ? 4.6 : 3.3);
-        const z = lockedDepthZ;
-        obj.position.set(x, y, z);
+    function buildIntroTarget(existingBoxes, obj, slot) {
+      // Posiciones finales compactas y centradas en pantalla.
+      // Mantienen Z alineado y evitan que los módulos queden cortados por margen.
+      const slots = IS_TOUCH
+        ? [
+            new THREE.Vector3(-0.85, 1.85, lockedDepthZ),
+            new THREE.Vector3( 0.85, 2.45, lockedDepthZ),
+            new THREE.Vector3( 0.00, 3.15, lockedDepthZ)
+          ]
+        : [
+            new THREE.Vector3(-1.15, 1.20, lockedDepthZ),
+            new THREE.Vector3( 1.15, 1.85, lockedDepthZ),
+            new THREE.Vector3( 0.00, 2.65, lockedDepthZ)
+          ];
+
+      let target = slots[slot % slots.length].clone();
+
+      // Si por tamaño/rotación algún bounding box se toca, sube suavemente
+      // la posición final hasta encontrar separación.
+      for(let attempt=0; attempt<18; attempt++) {
+        obj.position.copy(target);
         obj.updateMatrixWorld(true);
-        const b = new THREE.Box3().setFromObject(obj).expandByScalar(0.22);
+        const b = new THREE.Box3().setFromObject(obj).expandByScalar(0.26);
         if(existingBoxes.every(other => !b.intersectsBox(other))) {
           existingBoxes.push(b.clone());
-          return new THREE.Vector3(x, y, z);
+          return target.clone();
         }
+        target.y += IS_TOUCH ? 0.34 : 0.30;
       }
-      // Fallback separado por columnas, para que nunca arranquen encimados.
-      const slot = existingBoxes.length;
-      const x = (slot - 1) * (IS_TOUCH ? 2.2 : 2.7);
-      const y = (IS_TOUCH ? 2.0 : 1.5) + slot * 0.85;
-      const z = lockedDepthZ;
-      obj.position.set(x, y, z);
+
+      obj.position.copy(target);
       obj.updateMatrixWorld(true);
-      existingBoxes.push(new THREE.Box3().setFromObject(obj).expandByScalar(0.22));
-      return new THREE.Vector3(x, y, z);
+      existingBoxes.push(new THREE.Box3().setFromObject(obj).expandByScalar(0.26));
+      return target.clone();
     }
     function startIntroRain() {
       clearAll();
@@ -601,26 +611,26 @@
       unpinRotateHud();
 
       const count = 3;
-      const spreadX = IS_TOUCH ? 5.2 : 7.0;
-      const spreadZ = IS_TOUCH ? 2.8 : 4.0;
       const targetBoxes = [];
+      const sharedIntroXRotation = [0, Math.PI / 2, -Math.PI / 2][Math.floor(Math.random() * 3)];
 
       for(let i=0; i<count; i++) {
         const p = createModule(Math.floor(Math.random() * 4));
         p.userData.customPalette = getRandomPalette();
         applyPalette(p, p.userData.colorOffset || 0);
 
-        p.rotation.x = (Math.floor(Math.random() * 5) - 2) * Math.PI / 2;
+        // Los tres módulos comparten exactamente la misma rotación en X.
+        p.rotation.x = sharedIntroXRotation;
         p.rotation.y = 0;
         p.rotation.z = Math.floor(Math.random() * 8) * Math.PI / 4;
         normalizeRotation(p);
 
-        const target = buildIntroTarget(targetBoxes, p, spreadX, spreadZ);
+        const target = buildIntroTarget(targetBoxes, p, i);
         p.userData.freezeTarget = target.clone();
         p.position.set(
-          target.x + (Math.random() - 0.5) * 0.75,
-          target.y + 6.5 + Math.random() * 5.0 + i * 0.45,
-          target.z
+          target.x + (Math.random() - 0.5) * 0.38,
+          target.y + 6.2 + Math.random() * 4.2 + i * 0.45,
+          lockedDepthZ
         );
 
         p.userData.velocity = new THREE.Vector3(
@@ -629,7 +639,7 @@
           0
         );
         p.userData.spin = new THREE.Vector3(
-          (Math.random() - 0.5) * 0.026,
+          0,
           0,
           (Math.random() - 0.5) * 0.038
         );
