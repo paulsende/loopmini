@@ -399,6 +399,12 @@
     function addPiece(pos=new THREE.Vector3(0,0,0), rot=null, offset=null, avoidOverlap=true) {
       if(!templateGeometries.length) return;
       const p = createModule(offset ?? (pieces.length%4));
+
+      // Cada módulo nuevo arranca con colores random de la paleta base.
+      // Puede repetir color entre caras.
+      p.userData.customPalette = getRandomPalette();
+      applyPalette(p, p.userData.colorOffset || 0);
+
       p.position.copy(pos); p.position.z = lockedDepthZ;
       if(rot) p.rotation.set(...rot); else p.rotation.z=(pieces.length%8)*Math.PI/4; normalizeRotation(p);
       scene.add(p); settleOnFloor(p);
