@@ -406,7 +406,19 @@
       applyPalette(p, p.userData.colorOffset || 0);
 
       p.position.copy(pos); p.position.z = lockedDepthZ;
-      if(rot) p.rotation.set(...rot); else p.rotation.z=(pieces.length%8)*Math.PI/4; normalizeRotation(p);
+
+      if(rot) {
+        p.rotation.set(...rot);
+      } else {
+        // Cada módulo nuevo se agrega con una rotación Z de +90° o -90°
+        // respecto del último módulo agregado. Nunca usa saltos iniciales de 45°.
+        const previous = pieces[pieces.length - 1];
+        const previousZ = previous ? previous.rotation.z : 0;
+        const direction = Math.random() < 0.5 ? -1 : 1;
+        p.rotation.z = previousZ + direction * Math.PI / 2;
+      }
+
+      normalizeRotation(p);
       scene.add(p); settleOnFloor(p);
       if(avoidOverlap) findFreePosition(p);
       pieces.push(p); resolveOverlaps(p); select(p); updateCounter(); return p;
