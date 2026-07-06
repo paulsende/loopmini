@@ -14,7 +14,7 @@
     button { appearance:none; border:0; border-radius:12px; padding:9px 10px; font-size:12px; background:#171717; color:white; cursor:pointer; }
     button.secondary { background:rgba(0,0,0,.07); color:#111; }
     button.active { outline:2px solid rgba(0,0,0,.55); }
-    button.toggleOn { background:#f4a7c2; color:#111; }
+    button.toggleOn { background:#f7c9da; color:#111; }
     button.toggleOff { background:rgba(0,0,0,.13); color:#111; }
     button:active { transform:translateY(1px); }
     .grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:9px; }
@@ -136,7 +136,7 @@
       <button class="secondary" id="randomColor">Color random</button>
     </div>
     <button class="secondary wide toggleOn" id="snap" style="margin-top:14px;">Snap: ON</button>
-    <button class="secondary wide toggleOff" id="zMove">EJE Z MOVE: OFF</button>
+    <button class="secondary wide toggleOn" id="zMove">BLOQUEO EJE Z: ON</button>
     <div class="grid" style="margin-top:14px;">
       <button class="secondary" id="clear">Limpiar</button>
       <button class="secondary" id="shot">Captura</button>
@@ -146,7 +146,7 @@
   <div id="errorBox"></div>
   <div id="rotateHud">
     <div class="rotRow"><button id="hudRotXL" title="X -90°">↺</button><span class="tag">X 90°</span><button id="hudRotXR" title="X +90°">↻</button></div>
-    <div class="rotRow"><button id="hudRotL" title="Z -45°">↺</button><span class="tag">Z 45°</span><button id="hudRotR" title="Z +45°">↻</button></div>
+    <div class="rotRow"><button id="hudRotL" title="Z -90°">↺</button><span class="tag">Z 90°</span><button id="hudRotR" title="Z +90°">↻</button></div>
   </div>
   <div id="camPad" title="Arrastrá para mover la cámara">
     <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -186,7 +186,7 @@
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,1.15,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
-    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = false; scene.add(transform);
+    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = !zLockOn; scene.add(transform);
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { clampAboveFloor(selected); if(transform.getMode()==='translate') { if(snapOn) trySnap(selected); else resolveOverlaps(selected); } updateRotateHud(); } });
     transform.addEventListener('objectChange', () => { updateRotateHud(); });
 
@@ -195,7 +195,7 @@
     const key = new THREE.DirectionalLight(0xffffff,3.1); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
     const fill = new THREE.DirectionalLight(0xffffff,0.28); fill.position.set(-5,4,-3); scene.add(fill);
 
-    let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, zMoveOn=false, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
+    let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, zLockOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
     let hudPinned = false, hudPinnedX = 0, hudPinnedY = 0;
     let introActive = false, introStarted = false, introPieces = [], lastFrameTime = performance.now();
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
@@ -331,7 +331,7 @@
       applyPalette(selected, selected.userData.colorOffset || 0);
     }
 
-    function lockDepth(obj) { if(!zMoveOn) obj.position.z = lockedDepthZ; }
+    function lockDepth(obj) { if(zLockOn) obj.position.z = lockedDepthZ; }
     function clampAboveFloor(obj) {
       const b = new THREE.Box3().setFromObject(obj);
       if(Number.isFinite(b.min.y) && b.min.y < 0) obj.position.y -= b.min.y;
@@ -348,8 +348,8 @@
       const qZ = Math.PI / 4;
       const qX = Math.PI / 2;
       obj.rotation.x = Math.round(obj.rotation.x / qX) * qX; // X cada 90°, acumulativo
-      obj.rotation.y = Math.round(obj.rotation.y / qX) * qX; // Y cada 90°
-      obj.rotation.z = Math.round(obj.rotation.z / qZ) * qZ; // Z cada 45°
+      obj.rotation.y = 0;              // Y queda bloqueado
+      obj.rotation.z = Math.round(obj.rotation.z / qX) * qX; // Z cada 90°
     }
     function snapRotation(obj) { normalizeRotation(obj); }
     function rotateAxis(axis, step=1) {
@@ -359,7 +359,7 @@
       if(axis === 'x') {
         selected.rotation.x += step * Math.PI / 2;
       } else if(axis === 'z') {
-        selected.rotation.z += step * Math.PI / 4;
+        selected.rotation.z += step * Math.PI / 2;
       }
       normalizeRotation(selected);
       const after = getObjectCenter3D(selected);
@@ -593,8 +593,8 @@
 
         // Los 3 módulos arrancan con la misma rotación en X: 90°.
         p.rotation.x = Math.PI;
-        p.rotation.y = Math.random() < 0.5 ? 0 : Math.PI / 2;
-        p.rotation.z = Math.floor(Math.random() * 8) * Math.PI / 4;
+        p.rotation.y = 0;
+        p.rotation.z = Math.random() < 0.5 ? 0 : Math.PI / 2;
         normalizeRotation(p);
 
         const target = buildIntroTarget(targetBoxes, p, spreadX, spreadZ);
@@ -763,19 +763,19 @@
       setToggleButtonState(btn, snapOn);
     };
 
-    function toggleZMove() {
-      zMoveOn = !zMoveOn;
+    function toggleZLock() {
+      zLockOn = !zLockOn;
       const btn = document.getElementById('zMove');
-      btn.textContent = `EJE Z MOVE: ${zMoveOn ? 'ON' : 'OFF'}`;
-      setToggleButtonState(btn, zMoveOn);
-      transform.showZ = zMoveOn;
-      if(!zMoveOn) {
+      btn.textContent = `BLOQUEO EJE Z: ${zLockOn ? 'ON' : 'OFF'}`;
+      setToggleButtonState(btn, zLockOn);
+      transform.showZ = !zLockOn;
+      if(zLockOn) {
         pieces.forEach(p => lockDepth(p));
         if(selected) lockDepth(selected);
       }
       updateRotateHud();
     }
-    document.getElementById('zMove').onclick = toggleZMove;
+    document.getElementById('zMove').onclick = toggleZLock;
 
 
     addEventListener('keydown', (e)=>{
@@ -788,7 +788,7 @@
       if(e.key==='e' || e.key==='E') rotateZ(1);
       if(e.key==='r' || e.key==='R') rotateAxis('x', 1);
       if(e.key==='f' || e.key==='F') rotateAxis('x', -1);
-      if(e.key==='z' || e.key==='Z') toggleZMove();
+      if(e.key==='z' || e.key==='Z') toggleZLock();
     });
 
     (function setupCamPad(){
