@@ -182,7 +182,7 @@
     renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.585; renderer.setClearColor(0xffffff, 1); container.appendChild(renderer.domElement);
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
-    const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
+    const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,1.15,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
     const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = true; scene.add(transform);
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { clampAboveFloor(selected); if(transform.getMode()==='translate') { if(snapOn) trySnap(selected); else resolveOverlaps(selected); } updateRotateHud(); } });
     transform.addEventListener('objectChange', () => { updateRotateHud(); });
@@ -551,29 +551,21 @@
       if(loader) loader.classList.add('hidden');
     }
     function buildIntroTarget(existingBoxes, obj, spreadX, spreadZ) {
-      // Busca una posición final que no intersecte a las anteriores.
-      // No hay piso visible, pero usamos Y como altura de composición.
-      for(let attempt=0; attempt<90; attempt++) {
-        const x = (Math.random() - 0.5) * spreadX;
-        const y = (IS_TOUCH ? 1.15 : 0.85) + Math.random() * (IS_TOUCH ? 4.6 : 3.3);
-        const z = (Math.random() - 0.5) * spreadZ;
-        obj.position.set(x, y, z);
-        obj.updateMatrixWorld(true);
-        const b = new THREE.Box3().setFromObject(obj).expandByScalar(0.22);
-        if(existingBoxes.every(other => !b.intersectsBox(other))) {
-          existingBoxes.push(b.clone());
-          return new THREE.Vector3(x, y, z);
-        }
-      }
-      // Fallback separado por columnas, para que nunca arranquen encimados.
+      // Posiciones iniciales más bajas y centradas.
+      // El eje Z queda alineado en 0 para que no aparezcan módulos desplazados en profundidad.
+      // Usamos settleOnFloor() para que el piso invisible sea realmente la base de apoyo.
       const slot = existingBoxes.length;
-      const x = (slot - 1) * (IS_TOUCH ? 2.2 : 2.7);
-      const y = (IS_TOUCH ? 2.0 : 1.5) + slot * 0.85;
-      const z = (slot % 2 ? 0.9 : -0.9);
-      obj.position.set(x, y, z);
+      const spacing = IS_TOUCH ? 1.95 : 2.65;
+      const x = (slot - 1) * spacing;
+      const z = lockedDepthZ;
+
+      obj.position.set(x, 0, z);
+      settleOnFloor(obj);
       obj.updateMatrixWorld(true);
+
+      const target = obj.position.clone();
       existingBoxes.push(new THREE.Box3().setFromObject(obj).expandByScalar(0.22));
-      return new THREE.Vector3(x, y, z);
+      return target;
     }
     function startIntroRain() {
       clearAll();
@@ -593,7 +585,8 @@
         p.userData.customPalette = getRandomPalette();
         applyPalette(p, p.userData.colorOffset || 0);
 
-        p.rotation.x = (Math.floor(Math.random() * 5) - 2) * Math.PI / 2;
+        // Los 3 módulos arrancan con la misma rotación en X: 90°.
+        p.rotation.x = Math.PI / 2;
         p.rotation.y = 0;
         p.rotation.z = Math.floor(Math.random() * 8) * Math.PI / 4;
         normalizeRotation(p);
@@ -601,9 +594,9 @@
         const target = buildIntroTarget(targetBoxes, p, spreadX, spreadZ);
         p.userData.freezeTarget = target.clone();
         p.position.set(
-          target.x + (Math.random() - 0.5) * 0.75,
-          target.y + 6.8 + Math.random() * 5.0 + i * 0.45,
-          target.z + (Math.random() - 0.5) * 0.55
+          target.x + (Math.random() - 0.5) * 0.45,
+          target.y + 3.4 + Math.random() * 1.4 + i * 0.25,
+          target.z
         );
 
         p.userData.velocity = new THREE.Vector3(
