@@ -32,6 +32,11 @@
     #camPad:active { cursor:grabbing; }
     #camPad svg { width:28px; height:28px; pointer-events:none; }
 
+    #introLoader { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:#fff; color:#111; font-size:13px; font-weight:650; letter-spacing:.13em; text-align:center; padding:24px; transition:opacity .45s ease, visibility .45s ease; pointer-events:none; }
+    #introLoader.hidden { opacity:0; visibility:hidden; }
+    #introLoader .introTitle { line-height:1.45; text-transform:uppercase; }
+    #introLoader .introMini { display:block; margin-top:10px; font-size:10px; font-weight:500; letter-spacing:.08em; opacity:.45; }
+
     /* Mobile / touch layout: conserva la lógica desktop y sólo cambia interfaz + gestos */
     @media (max-width: 760px), (pointer: coarse) {
       html, body {
@@ -110,6 +115,7 @@
   </style>
 </head>
 <body>
+  <div id="introLoader"><div class="introTitle">LOOP MINI DIGITAL PLAYGROUND x PAUL SENDE<span class="introMini">cargando módulos</span></div></div>
   <div id="app"></div>
   <div class="panel">
     <h1>LOOP Sandbox</h1>
@@ -183,6 +189,7 @@
 
     let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
     let hudPinned = false, hudPinnedX = 0, hudPinnedY = 0;
+    let introActive = false, introStarted = false, introPieces = [], lastFrameTime = performance.now();
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
     renderer.domElement.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
     const raycaster = new THREE.Raycaster(); const pointer = new THREE.Vector2(); const dragPlane = new THREE.Plane(new THREE.Vector3(0,0,1), -lockedDepthZ); const dragPoint = new THREE.Vector3(); const dragOffset = new THREE.Vector3(); let isDraggingPiece = false; let pointerMoved = false;
@@ -526,19 +533,95 @@
       hud.style.display = 'flex';
     }
 
+    function hideIntroLoader() {
+      const loader = document.getElementById('introLoader');
+      if(loader) loader.classList.add('hidden');
+    }
+    function startIntroRain() {
+      clearAll();
+      introActive = true;
+      introStarted = true;
+      introPieces = [];
+      orbit.enabled = false;
+      unpinRotateHud();
+
+      const count = 13;
+      const spreadX = IS_TOUCH ? 5.4 : 7.6;
+      const spreadZ = IS_TOUCH ? 3.0 : 4.2;
+      for(let i=0; i<count; i++) {
+        const p = createModule(Math.floor(Math.random() * 4));
+        p.userData.customPalette = getRandomPalette();
+        applyPalette(p, p.userData.colorOffset || 0);
+        p.position.set(
+          (Math.random() - 0.5) * spreadX,
+          7.5 + Math.random() * 8.5 + i * 0.10,
+          (Math.random() - 0.5) * spreadZ
+        );
+        p.rotation.x = (Math.floor(Math.random() * 5) - 2) * Math.PI / 2;
+        p.rotation.y = 0;
+        p.rotation.z = Math.floor(Math.random() * 8) * Math.PI / 4;
+        normalizeRotation(p);
+        p.userData.velocity = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.018,
+          -0.030 - Math.random() * 0.030,
+          (Math.random() - 0.5) * 0.018
+        );
+        p.userData.spin = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.030,
+          0,
+          (Math.random() - 0.5) * 0.045
+        );
+        p.userData.freezeY = 0.10 + Math.random() * (IS_TOUCH ? 4.8 : 3.8);
+        p.userData.falling = true;
+        p.userData.freezeDelay = i * 45 + Math.random() * 320;
+        p.userData.birth = performance.now();
+        scene.add(p);
+        pieces.push(p);
+        introPieces.push(p);
+      }
+      updateCounter();
+      setTimeout(hideIntroLoader, 260);
+    }
+    function finishIntroRain() {
+      introActive = false;
+      orbit.enabled = true;
+      introPieces.forEach(p => {
+        p.userData.falling = false;
+        normalizeRotation(p);
+      });
+      if(pieces[0]) select(pieces[0]);
+      updateCounter();
+    }
+    function updateIntroRain(dt) {
+      if(!introActive) return;
+      let fallingCount = 0;
+      const now = performance.now();
+      introPieces.forEach((p, i) => {
+        if(!p.userData.falling) return;
+        fallingCount++;
+        const v = p.userData.velocity;
+        const spin = p.userData.spin;
+        v.y -= 1.15 * dt;
+        p.position.x += v.x * 60 * dt;
+        p.position.y += v.y * 60 * dt;
+        p.position.z += v.z * 60 * dt;
+        p.rotation.x += spin.x * 60 * dt;
+        p.rotation.z += spin.z * 60 * dt;
+        const canFreeze = now - p.userData.birth > p.userData.freezeDelay;
+        if(canFreeze && p.position.y <= p.userData.freezeY) {
+          p.userData.falling = false;
+          normalizeRotation(p);
+          clampAboveFloor(p);
+        }
+      });
+      if(fallingCount === 0 || (introStarted && now - introPieces[0].userData.birth > 5200)) finishIntroRain();
+    }
+
     try {
       transform.setMode('translate');
       loadRawGeometries();
-      for(let i=0; i<3; i++) {
-        const angle = Math.random()*Math.PI*2;
-        const dist = Math.random()*1.4;
-        const startPos = new THREE.Vector3(Math.cos(angle)*dist, 0, 0);
-        const rotStep = Math.floor(Math.random()*8);
-        const piece = addPiece(startPos, [0,0,rotStep*Math.PI/4], Math.floor(Math.random()*4));
-        if(piece) { piece.userData.customPalette = getRandomPalette(); applyPalette(piece, piece.userData.colorOffset || 0); }
-      }
-      if(pieces[0]) select(pieces[0]);
       updateCounter();
+      setTimeout(startIntroRain, 850);
     } catch(err) {
       const box = document.getElementById('errorBox'); box.style.display='block'; box.textContent='No se pudo reconstruir la geometría cruda.';
       console.error(err);
@@ -550,6 +633,7 @@
       raycaster.setFromCamera(pointer, camera);
     }
     renderer.domElement.addEventListener('pointerdown', (event)=>{
+      if(introActive) return;
       if(transform.dragging) return;
       unpinRotateHud();
       event.preventDefault();
@@ -594,7 +678,7 @@
     });
     renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; });
 
-    document.getElementById('add').onclick = ()=>addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0));
+    document.getElementById('add').onclick = ()=>{ if(!introActive) addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0)); };
     document.getElementById('dup').onclick = duplicateSelected;
     document.getElementById('del').onclick = deleteSelected;
     document.getElementById('hudRotXL').onclick = (e)=>{ e.stopPropagation(); pinRotateHud(); rotateAxis('x', -1); };
@@ -656,7 +740,7 @@
     })();
 
     addEventListener('resize', ()=>{ unpinRotateHud(); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); });
-    renderer.setAnimationLoop(()=>{ orbit.update(); updateRotateHud(); renderer.render(scene,camera); });
+    renderer.setAnimationLoop(()=>{ const now = performance.now(); const dt = Math.min(0.05, (now - lastFrameTime) / 1000); lastFrameTime = now; updateIntroRain(dt); orbit.update(); updateRotateHud(); renderer.render(scene,camera); });
   </script>
 </body>
 </html>
