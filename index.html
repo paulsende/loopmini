@@ -134,6 +134,7 @@
       <button class="secondary" id="randomColor">Color random</button>
     </div>
     <button class="secondary wide" id="snap" style="margin-top:14px;">Snap: ON</button>
+    <button class="secondary wide" id="zMove">EJE Z MOVE: OFF</button>
     <div class="grid" style="margin-top:14px;">
       <button class="secondary" id="clear">Limpiar</button>
       <button class="secondary" id="shot">Captura</button>
@@ -183,7 +184,7 @@
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,1.15,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
-    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = true; scene.add(transform);
+    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = zMoveOn; scene.add(transform);
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { clampAboveFloor(selected); if(transform.getMode()==='translate') { if(snapOn) trySnap(selected); else resolveOverlaps(selected); } updateRotateHud(); } });
     transform.addEventListener('objectChange', () => { updateRotateHud(); });
 
@@ -192,7 +193,7 @@
     const key = new THREE.DirectionalLight(0xffffff,3.1); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
     const fill = new THREE.DirectionalLight(0xffffff,0.28); fill.position.set(-5,4,-3); scene.add(fill);
 
-    let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
+    let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, zMoveOn=false, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
     let hudPinned = false, hudPinnedX = 0, hudPinnedY = 0;
     let introActive = false, introStarted = false, introPieces = [], lastFrameTime = performance.now();
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
@@ -328,7 +329,7 @@
       applyPalette(selected, selected.userData.colorOffset || 0);
     }
 
-    function lockDepth(obj) { obj.position.z = lockedDepthZ; }
+    function lockDepth(obj) { if(!zMoveOn) obj.position.z = lockedDepthZ; }
     function clampAboveFloor(obj) {
       const b = new THREE.Box3().setFromObject(obj);
       if(Number.isFinite(b.min.y) && b.min.y < 0) obj.position.y -= b.min.y;
@@ -363,8 +364,10 @@
       selected.position.x += before.x - after.x;
       selected.position.y += before.y - after.y;
       selected.position.z += before.z - after.z;
+      lockDepth(selected);
       clampAboveFloor(selected);
       if(snapOn) trySnap(selected); else resolveOverlaps(selected);
+      lockDepth(selected);
       updateRotateHud();
     }
     function rotateZ(step=1) { rotateAxis('z', step); }
@@ -484,6 +487,7 @@
       if(best) {
         if(best.pull > 0.002) {
           moving.position.add(best.delta);
+          lockDepth(moving);
           clampAboveFloor(moving);
           playSnapSound();
         }
@@ -626,6 +630,7 @@
         p.userData.falling = false;
         if(p.userData.freezeTarget) p.position.copy(p.userData.freezeTarget);
         normalizeRotation(p);
+        lockDepth(p);
       });
       if(pieces[0]) select(pieces[0]);
       updateCounter();
@@ -717,6 +722,7 @@
       updatePointer(event);
       if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
         selected.position.copy(dragPoint).add(dragOffset);
+        lockDepth(selected);
         clampAboveFloor(selected);
         updateRotateHud();
       }
@@ -728,7 +734,7 @@
       isDraggingPiece = false;
       orbit.enabled = true;
       renderer.domElement.releasePointerCapture?.(event.pointerId);
-      if(selected) { clampAboveFloor(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); }
+      if(selected) { lockDepth(selected); clampAboveFloor(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); lockDepth(selected); }
       updateRotateHud();
     });
     renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; });
@@ -746,6 +752,18 @@
     document.getElementById('shot').onclick = screenShot;
     document.getElementById('snap').onclick = ()=>{ snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; };
 
+    function toggleZMove() {
+      zMoveOn = !zMoveOn;
+      document.getElementById('zMove').textContent = `EJE Z MOVE: ${zMoveOn ? 'ON' : 'OFF'}`;
+      transform.showZ = zMoveOn;
+      if(!zMoveOn) {
+        pieces.forEach(p => lockDepth(p));
+        if(selected) lockDepth(selected);
+      }
+      updateRotateHud();
+    }
+    document.getElementById('zMove').onclick = toggleZMove;
+
 
     addEventListener('keydown', (e)=>{
       if(e.target.tagName==='INPUT') return;
@@ -757,6 +775,7 @@
       if(e.key==='e' || e.key==='E') rotateZ(1);
       if(e.key==='r' || e.key==='R') rotateAxis('x', 1);
       if(e.key==='f' || e.key==='F') rotateAxis('x', -1);
+      if(e.key==='z' || e.key==='Z') toggleZMove();
     });
 
     (function setupCamPad(){
