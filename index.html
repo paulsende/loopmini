@@ -134,6 +134,7 @@
       <button class="secondary" id="randomColor">Color random</button>
     </div>
     <button class="secondary wide" id="snap" style="margin-top:14px;">Snap: ON</button>
+    <button class="secondary wide" id="zLock" style="margin-top:7px;">EJE Z: ON</button>
     <div class="grid" style="margin-top:14px;">
       <button class="secondary" id="clear">Limpiar</button>
       <button class="secondary" id="shot">Captura</button>
@@ -192,7 +193,7 @@
     const key = new THREE.DirectionalLight(0xffffff,3.1); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
     const fill = new THREE.DirectionalLight(0xffffff,0.28); fill.position.set(-5,4,-3); scene.add(fill);
 
-    let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
+    let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, zLockOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
     let hudPinned = false, hudPinnedX = 0, hudPinnedY = 0;
     let introActive = false, introStarted = false, introPieces = [], lastFrameTime = performance.now();
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
@@ -328,7 +329,7 @@
       applyPalette(selected, selected.userData.colorOffset || 0);
     }
 
-    function lockDepth(obj) { obj.position.z = lockedDepthZ; }
+    function lockDepth(obj) { if(zLockOn) obj.position.z = lockedDepthZ; }
     function clampAboveFloor(obj) {
       const b = new THREE.Box3().setFromObject(obj);
       if(Number.isFinite(b.min.y) && b.min.y < 0) obj.position.y -= b.min.y;
@@ -364,6 +365,7 @@
       selected.position.y += before.y - after.y;
       selected.position.z += before.z - after.z;
       clampAboveFloor(selected);
+      lockDepth(selected);
       if(snapOn) trySnap(selected); else resolveOverlaps(selected);
       updateRotateHud();
     }
@@ -393,14 +395,14 @@
     function addPiece(pos=new THREE.Vector3(0,0,0), rot=null, offset=null, avoidOverlap=true) {
       if(!templateGeometries.length) return;
       const p = createModule(offset ?? (pieces.length%4));
-      p.position.copy(pos); p.position.z = lockedDepthZ;
+      p.position.copy(pos); if(zLockOn) p.position.z = lockedDepthZ;
       if(rot) p.rotation.set(...rot); else p.rotation.z=(pieces.length%8)*Math.PI/4; normalizeRotation(p);
       scene.add(p); settleOnFloor(p);
       if(avoidOverlap) findFreePosition(p);
       pieces.push(p); resolveOverlaps(p); select(p); updateCounter(); return p;
     }
 
-    function select(obj) { const changed = selected !== obj; selected=obj; if(changed) unpinRotateHud(); pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { clampAboveFloor(selected); } transform.detach(); updateRotateHud(); }
+    function select(obj) { const changed = selected !== obj; selected=obj; if(changed) unpinRotateHud(); pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { clampAboveFloor(selected); lockDepth(selected); } transform.detach(); updateRotateHud(); }
     function updateCounter() { document.getElementById('counter').textContent = `${pieces.length} módulo${pieces.length===1?'':'s'}`; }
     function duplicateSelected() { if(!selected) return; addPiece(selected.position.clone().add(new THREE.Vector3(.75,.25,0)), [selected.rotation.x,selected.rotation.y,selected.rotation.z], selected.userData.colorOffset || 0); }
     function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); selected=null; updateCounter(); }
@@ -441,6 +443,7 @@
           if(push.axis === 'x') moving.position.x += push.value + Math.sign(push.value || 1) * 0.045;
           else moving.position.y += push.value + Math.sign(push.value || 1) * 0.045;
           clampAboveFloor(moving);
+          lockDepth(moving);
           changed = true;
           mb = box2D(moving);
         }
@@ -453,6 +456,7 @@
 
       normalizeRotation(moving);
       clampAboveFloor(moving);
+      lockDepth(moving);
       moving.updateMatrixWorld(true);
 
       const movingFaces = getSnapFaces(moving);
@@ -485,6 +489,7 @@
         if(best.pull > 0.002) {
           moving.position.add(best.delta);
           clampAboveFloor(moving);
+          lockDepth(moving);
           playSnapSound();
         }
         return true;
@@ -508,6 +513,18 @@
     }
     function clearAll() { pieces.forEach(p=>scene.remove(p)); pieces=[]; selected=null; transform.detach(); updateCounter(); }
     function screenShot() { const a=document.createElement('a'); a.href=renderer.domElement.toDataURL('image/png'); a.download='loop-sandbox-captura.png'; a.click(); }
+    function updateZLockButton() {
+      document.getElementById('zLock').textContent = `EJE Z: ${zLockOn?'ON':'OFF'}`;
+    }
+    function toggleZLock() {
+      zLockOn = !zLockOn;
+      if(zLockOn) {
+        // Al volver a bloquear, todos los módulos regresan al plano Z fijo.
+        pieces.forEach(p => { lockDepth(p); });
+      }
+      updateZLockButton();
+    }
+
     function pinRotateHud() {
       const hud = document.getElementById('rotateHud');
       const r = hud.getBoundingClientRect();
@@ -556,7 +573,7 @@
       for(let attempt=0; attempt<90; attempt++) {
         const x = (Math.random() - 0.5) * spreadX;
         const y = (IS_TOUCH ? 1.15 : 0.85) + Math.random() * (IS_TOUCH ? 4.6 : 3.3);
-        const z = (Math.random() - 0.5) * spreadZ;
+        const z = lockedDepthZ;
         obj.position.set(x, y, z);
         obj.updateMatrixWorld(true);
         const b = new THREE.Box3().setFromObject(obj).expandByScalar(0.22);
@@ -569,7 +586,7 @@
       const slot = existingBoxes.length;
       const x = (slot - 1) * (IS_TOUCH ? 2.2 : 2.7);
       const y = (IS_TOUCH ? 2.0 : 1.5) + slot * 0.85;
-      const z = (slot % 2 ? 0.9 : -0.9);
+      const z = lockedDepthZ;
       obj.position.set(x, y, z);
       obj.updateMatrixWorld(true);
       existingBoxes.push(new THREE.Box3().setFromObject(obj).expandByScalar(0.22));
@@ -603,13 +620,13 @@
         p.position.set(
           target.x + (Math.random() - 0.5) * 0.75,
           target.y + 6.5 + Math.random() * 5.0 + i * 0.45,
-          target.z + (Math.random() - 0.5) * 0.55
+          target.z
         );
 
         p.userData.velocity = new THREE.Vector3(
           (target.x - p.position.x) * 0.012,
           -0.032 - Math.random() * 0.025,
-          (target.z - p.position.z) * 0.012
+          0
         );
         p.userData.spin = new THREE.Vector3(
           (Math.random() - 0.5) * 0.026,
@@ -633,6 +650,7 @@
         p.userData.falling = false;
         if(p.userData.freezeTarget) p.position.copy(p.userData.freezeTarget);
         normalizeRotation(p);
+        lockDepth(p);
       });
       if(pieces[0]) select(pieces[0]);
       updateCounter();
@@ -651,12 +669,13 @@
         // Caída con leve atracción hacia la posición final, para evitar que se encimen.
         if(target) {
           v.x += (target.x - p.position.x) * 0.020 * dt;
-          v.z += (target.z - p.position.z) * 0.020 * dt;
+          if(!zLockOn) v.z += (target.z - p.position.z) * 0.020 * dt;
         }
         v.y -= 1.05 * dt;
         p.position.x += v.x * 60 * dt;
         p.position.y += v.y * 60 * dt;
         p.position.z += v.z * 60 * dt;
+        lockDepth(p);
         p.rotation.x += spin.x * 60 * dt;
         p.rotation.z += spin.z * 60 * dt;
 
@@ -665,6 +684,7 @@
           p.userData.falling = false;
           p.position.copy(target);
           normalizeRotation(p);
+          lockDepth(p);
         }
       });
       if(fallingCount === 0 || (introStarted && introPieces[0] && now - introPieces[0].userData.birth > 5000)) finishIntroRain();
@@ -673,6 +693,7 @@
     try {
       transform.setMode('translate');
       setIntroProgress(8);
+      updateZLockButton();
       loadRawGeometries();
       updateCounter();
       const loadingStarted = performance.now();
@@ -710,8 +731,12 @@
           pointerMoved = false;
           orbit.enabled = false;
           renderer.domElement.setPointerCapture?.(event.pointerId);
-          const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
-          dragPlane.setFromNormalAndCoplanarPoint(camDir, selected.position);
+          if(zLockOn) {
+            dragPlane.set(new THREE.Vector3(0,0,1), -lockedDepthZ);
+          } else {
+            const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
+            dragPlane.setFromNormalAndCoplanarPoint(camDir, selected.position);
+          }
           if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) dragOffset.copy(selected.position).sub(dragPoint);
         }
       } else { select(null); }
@@ -725,6 +750,7 @@
       if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
         selected.position.copy(dragPoint).add(dragOffset);
         clampAboveFloor(selected);
+        lockDepth(selected);
         updateRotateHud();
       }
     });
@@ -735,7 +761,7 @@
       isDraggingPiece = false;
       orbit.enabled = true;
       renderer.domElement.releasePointerCapture?.(event.pointerId);
-      if(selected) { clampAboveFloor(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); }
+      if(selected) { clampAboveFloor(selected); lockDepth(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); }
       updateRotateHud();
     });
     renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; });
@@ -752,6 +778,7 @@
     document.getElementById('clear').onclick = clearAll;
     document.getElementById('shot').onclick = screenShot;
     document.getElementById('snap').onclick = ()=>{ snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; };
+    document.getElementById('zLock').onclick = toggleZLock;
 
 
     addEventListener('keydown', (e)=>{
@@ -760,6 +787,7 @@
       if(e.key==='d' || e.key==='D') duplicateSelected();
       if(e.key==='Delete' || e.key==='Backspace') deleteSelected();
       if(e.key==='s' || e.key==='S') { snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; }
+      if(e.key==='z' || e.key==='Z') toggleZLock();
       if(e.key==='q' || e.key==='Q') rotateZ(-1);
       if(e.key==='e' || e.key==='E') rotateZ(1);
       if(e.key==='r' || e.key==='R') rotateAxis('x', 1);
