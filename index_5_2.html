@@ -131,8 +131,7 @@
   <div class="right" id="counter">Cargando módulo...</div>
   <div id="errorBox"></div>
   <div id="rotateHud">
-    <div class="rotRow"><button id="hudRotXL" title="X -45°">↺</button><span class="tag">X 45°</span><button id="hudRotXR" title="X +45°">↻</button></div>
-    <div class="rotRow"><button id="hudRotYL" title="Y -45°">↺</button><span class="tag">Y 45°</span><button id="hudRotYR" title="Y +45°">↻</button></div>
+    <div class="rotRow"><button id="hudRotXL" title="X -90°">↺</button><span class="tag">X 90°</span><button id="hudRotXR" title="X +90°">↻</button></div>
     <div class="rotRow"><button id="hudRotL" title="Z -45°">↺</button><span class="tag">Z 45°</span><button id="hudRotR" title="Z +45°">↻</button></div>
   </div>
   <div id="camPad" title="Arrastrá para mover la cámara">
@@ -275,10 +274,10 @@
         const c = b.getCenter(new THREE.Vector3());
         if(side === 'bottom') {
           c.y = minY;
-          return { side, center:new THREE.Vector2(c.x, c.y), normal:new THREE.Vector2(0, -1), length:b.max.x - b.min.x };
+          return { side, center:c.clone(), normal:new THREE.Vector3(0, -1, 0), length:b.max.x - b.min.x };
         }
         c.x = maxX;
-        return { side, center:new THREE.Vector2(c.x, c.y), normal:new THREE.Vector2(1, 0), length:b.max.y - b.min.y };
+        return { side, center:c.clone(), normal:new THREE.Vector3(1, 0, 0), length:b.max.y - b.min.y };
       }
       snapConnectorFaces = [faceFrom(bottom, 'bottom'), faceFrom(right, 'right')];
     }
@@ -329,13 +328,28 @@
       const b = new THREE.Box3().setFromObject(obj);
       return b.getCenter(new THREE.Vector3());
     }
-    function snapRotation(obj) { const q=Math.PI/4; obj.rotation.z=Math.round(obj.rotation.z/q)*q; }
+    function normalizeRotation(obj) {
+      const qZ = Math.PI / 4;
+      const qX = Math.PI / 2;
+      const xStep = Math.max(-1, Math.min(1, Math.round(obj.rotation.x / qX)));
+      obj.rotation.x = xStep * qX;     // X sólo puede ser -90°, 0° o +90°
+      obj.rotation.y = 0;              // Y queda bloqueado
+      obj.rotation.z = Math.round(obj.rotation.z / qZ) * qZ; // Z cada 45°
+    }
+    function snapRotation(obj) { normalizeRotation(obj); }
     function rotateAxis(axis, step=1) {
       if(!selected) return;
+      if(axis === 'y') return;
       const before = getObjectCenter3D(selected);
-      selected.rotation[axis] += step * Math.PI/4;
-      const q = Math.PI/4;
-      selected.rotation[axis] = Math.round(selected.rotation[axis]/q)*q;
+      if(axis === 'x') {
+        const q = Math.PI / 2;
+        const current = Math.round(selected.rotation.x / q);
+        const next = Math.max(-1, Math.min(1, current + step));
+        selected.rotation.x = next * q;
+      } else if(axis === 'z') {
+        selected.rotation.z += step * Math.PI / 4;
+      }
+      normalizeRotation(selected);
       const after = getObjectCenter3D(selected);
       selected.position.x += before.x - after.x;
       selected.position.y += before.y - after.y;
@@ -371,7 +385,7 @@
       if(!templateGeometries.length) return;
       const p = createModule(offset ?? (pieces.length%4));
       p.position.copy(pos); p.position.z = lockedDepthZ;
-      if(rot) p.rotation.set(...rot); else p.rotation.z=(pieces.length%8)*Math.PI/4; snapRotation(p);
+      if(rot) p.rotation.set(...rot); else p.rotation.z=(pieces.length%8)*Math.PI/4; normalizeRotation(p);
       scene.add(p); settleOnFloor(p);
       if(avoidOverlap) findFreePosition(p);
       pieces.push(p); resolveOverlaps(p); select(p); updateCounter(); return p;
@@ -383,14 +397,12 @@
     function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); selected=null; updateCounter(); }
     function shuffleColors() { if(!selected) return; selected.userData.customPalette = null; applyPalette(selected, ((selected.userData.colorOffset||0)+1)%4); }
     function getSnapFaces(obj) {
-      const angle = obj.rotation.z;
-      const cos = Math.cos(angle), sin = Math.sin(angle);
+      obj.updateMatrixWorld(true);
+      const q = obj.getWorldQuaternion(new THREE.Quaternion());
       return snapConnectorFaces.map(f => {
-        const cx = f.center.x * cos - f.center.y * sin + obj.position.x;
-        const cy = f.center.x * sin + f.center.y * cos + obj.position.y;
-        const nx = f.normal.x * cos - f.normal.y * sin;
-        const ny = f.normal.x * sin + f.normal.y * cos;
-        return { side:f.side, center:new THREE.Vector2(cx, cy), normal:new THREE.Vector2(nx, ny).normalize(), length:f.length };
+        const center = f.center.clone().applyMatrix4(obj.matrixWorld);
+        const normal = f.normal.clone().applyQuaternion(q).normalize();
+        return { side:f.side, center, normal, length:f.length };
       });
     }
     function box2D(obj) {
@@ -428,39 +440,41 @@
       return true;
     }
     function trySnap(moving) {
-      const isFlat = Math.abs(moving.rotation.x) < 0.01 && Math.abs(moving.rotation.y) < 0.01;
-      if(!snapOn || pieces.length<2 || !isFlat) { resolveOverlaps(moving); return false; }
+      if(!snapOn || pieces.length < 2) { resolveOverlaps(moving); return false; }
 
-      snapRotation(moving);
+      normalizeRotation(moving);
       clampAboveFloor(moving);
+      moving.updateMatrixWorld(true);
 
       const movingFaces = getSnapFaces(moving);
       let best = null;
 
       for(const other of pieces) if(other !== moving) {
+        normalizeRotation(other);
+        other.updateMatrixWorld(true);
         const otherFaces = getSnapFaces(other);
         for(const mf of movingFaces) for(const oface of otherFaces) {
+          // Las dos caras de conexión tienen que estar enfrentadas en 3D.
           const facing = mf.normal.dot(oface.normal) < -0.985;
           if(!facing) continue;
 
-          const dx = oface.center.x - mf.center.x;
-          const dy = oface.center.y - mf.center.y;
-          const pull = Math.hypot(dx, dy);
-          if(pull > 1.05) continue;
+          const delta = oface.center.clone().sub(mf.center);
+          const pull = delta.length();
+          if(pull > 1.15) continue;
 
-          const tangent = new THREE.Vector2(-oface.normal.y, oface.normal.x);
-          const tangentMiss = Math.abs(new THREE.Vector2(dx, dy).dot(tangent));
-          const normalMiss = Math.abs(new THREE.Vector2(dx, dy).dot(oface.normal));
+          // Si el módulo está parado/acostado en X, el snap sigue funcionando
+          // porque ya no proyectamos las caras al plano XY: se comparan en 3D.
+          const normalMiss = Math.abs(delta.dot(oface.normal));
+          const tangentMiss = Math.sqrt(Math.max(0, pull * pull - normalMiss * normalMiss));
           const lengthPenalty = Math.abs(mf.length - oface.length) * 0.18;
           const score = normalMiss + tangentMiss * 0.75 + lengthPenalty;
-          if(!best || score < best.score) best = { dx, dy, pull, score };
+          if(!best || score < best.score) best = { delta, pull, score };
         }
       }
 
       if(best) {
         if(best.pull > 0.002) {
-          moving.position.x += best.dx;
-          moving.position.y += best.dy;
+          moving.position.add(best.delta);
           clampAboveFloor(moving);
           playSnapSound();
         }
@@ -571,8 +585,6 @@
     document.getElementById('del').onclick = deleteSelected;
     document.getElementById('hudRotXL').onclick = (e)=>{ e.stopPropagation(); rotateAxis('x', -1); };
     document.getElementById('hudRotXR').onclick = (e)=>{ e.stopPropagation(); rotateAxis('x', 1); };
-    document.getElementById('hudRotYL').onclick = (e)=>{ e.stopPropagation(); rotateAxis('y', -1); };
-    document.getElementById('hudRotYR').onclick = (e)=>{ e.stopPropagation(); rotateAxis('y', 1); };
     document.getElementById('hudRotL').onclick = (e)=>{ e.stopPropagation(); rotateZ(-1); };
     document.getElementById('hudRotR').onclick = (e)=>{ e.stopPropagation(); rotateZ(1); };
     document.getElementById('shuffle').onclick = shuffleColors;
@@ -590,6 +602,8 @@
       if(e.key==='s' || e.key==='S') { snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; }
       if(e.key==='q' || e.key==='Q') rotateZ(-1);
       if(e.key==='e' || e.key==='E') rotateZ(1);
+      if(e.key==='r' || e.key==='R') rotateAxis('x', 1);
+      if(e.key==='f' || e.key==='F') rotateAxis('x', -1);
     });
 
     (function setupCamPad(){
