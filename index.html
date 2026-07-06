@@ -146,7 +146,7 @@
   <div id="errorBox"></div>
   <div id="rotateHud">
     <div class="rotRow"><button id="hudRotXL" title="X -90°">↺</button><span class="tag">X 90°</span><button id="hudRotXR" title="X +90°">↻</button></div>
-    <div class="rotRow"><button id="hudRotL" title="Z -90°">↺</button><span class="tag">Z 90°</span><button id="hudRotR" title="Z +90°">↻</button></div>
+    <div class="rotRow"><button id="hudRotL" title="Z -45°">↺</button><span class="tag">Z 45°</span><button id="hudRotR" title="Z +45°">↻</button></div>
   </div>
   <div id="camPad" title="Arrastrá para mover la cámara">
     <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -197,6 +197,7 @@
 
     let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, zLockOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
     let hudPinned = false, hudPinnedX = 0, hudPinnedY = 0;
+    let hovered = null;
     let introActive = false, introStarted = false, introPieces = [], lastFrameTime = performance.now();
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
     renderer.domElement.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
@@ -349,7 +350,7 @@
       const qX = Math.PI / 2;
       obj.rotation.x = Math.round(obj.rotation.x / qX) * qX; // X cada 90°, acumulativo
       obj.rotation.y = 0;              // Y queda bloqueado
-      obj.rotation.z = Math.round(obj.rotation.z / qX) * qX; // Z cada 90°
+      obj.rotation.z = Math.round(obj.rotation.z / qZ) * qZ; // Z cada 45°
     }
     function snapRotation(obj) { normalizeRotation(obj); }
     function rotateAxis(axis, step=1) {
@@ -359,7 +360,7 @@
       if(axis === 'x') {
         selected.rotation.x += step * Math.PI / 2;
       } else if(axis === 'z') {
-        selected.rotation.z += step * Math.PI / 2;
+        selected.rotation.z += step * Math.PI / 4;
       }
       normalizeRotation(selected);
       const after = getObjectCenter3D(selected);
@@ -405,10 +406,29 @@
       pieces.push(p); resolveOverlaps(p); select(p); updateCounter(); return p;
     }
 
-    function select(obj) { const changed = selected !== obj; selected=obj; if(changed) unpinRotateHud(); pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { clampAboveFloor(selected); } transform.detach(); updateRotateHud(); }
+    function setModuleScale(obj, scale) {
+      if(!obj) return;
+      obj.scale.setScalar(scale);
+    }
+    function refreshInteractiveScales() {
+      pieces.forEach(p => {
+        if(p === selected && isDraggingPiece) setModuleScale(p, 1.025);
+        else if(p === hovered) setModuleScale(p, 1.012);
+        else setModuleScale(p, 1);
+      });
+    }
+    function select(obj) {
+      const changed = selected !== obj;
+      selected = obj;
+      if(changed) unpinRotateHud();
+      if(selected) { clampAboveFloor(selected); }
+      transform.detach();
+      refreshInteractiveScales();
+      updateRotateHud();
+    }
     function updateCounter() { document.getElementById('counter').textContent = `${pieces.length} módulo${pieces.length===1?'':'s'}`; }
     function duplicateSelected() { if(!selected) return; addPiece(selected.position.clone().add(new THREE.Vector3(.75,.25,0)), [selected.rotation.x,selected.rotation.y,selected.rotation.z], selected.userData.colorOffset || 0); }
-    function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); selected=null; updateCounter(); }
+    function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); if(hovered===selected) hovered=null; selected=null; refreshInteractiveScales(); updateCounter(); }
     function shuffleColors() { if(!selected) return; selected.userData.customPalette = null; applyPalette(selected, ((selected.userData.colorOffset||0)+1)%4); }
     function getSnapFaces(obj) {
       obj.updateMatrixWorld(true);
@@ -512,7 +532,7 @@
       });
       if(pieces[0]) select(pieces[0]);
     }
-    function clearAll() { pieces.forEach(p=>scene.remove(p)); pieces=[]; selected=null; transform.detach(); updateCounter(); }
+    function clearAll() { pieces.forEach(p=>scene.remove(p)); pieces=[]; selected=null; hovered=null; transform.detach(); updateCounter(); }
     function screenShot() { const a=document.createElement('a'); a.href=renderer.domElement.toDataURL('image/png'); a.download='loop-sandbox-captura.png'; a.click(); }
     function pinRotateHud() {
       const hud = document.getElementById('rotateHud');
@@ -713,13 +733,31 @@
           const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
           dragPlane.setFromNormalAndCoplanarPoint(camDir, selected.position);
           if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) dragOffset.copy(selected.position).sub(dragPoint);
+          renderer.domElement.style.cursor = 'grabbing';
+          refreshInteractiveScales();
         }
       } else { select(null); }
     });
     renderer.domElement.addEventListener('pointermove', (event)=>{
       if(transform.dragging) return;
-      if(isDraggingPiece) event.preventDefault();
-      if(!isDraggingPiece || !selected) return;
+      if(!isDraggingPiece) {
+        updatePointer(event);
+        const hits = raycaster.intersectObjects(pieces, true);
+        let nextHover = null;
+        if(hits.length) {
+          let obj = hits[0].object;
+          while(obj && !obj.userData.isModule) obj = obj.parent;
+          if(obj) nextHover = obj;
+        }
+        if(nextHover !== hovered) {
+          hovered = nextHover;
+          refreshInteractiveScales();
+          renderer.domElement.style.cursor = hovered ? 'grab' : '';
+        }
+        return;
+      }
+      event.preventDefault();
+      if(!selected) return;
       pointerMoved = true;
       updatePointer(event);
       if(raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
@@ -737,9 +775,11 @@
       orbit.enabled = true;
       renderer.domElement.releasePointerCapture?.(event.pointerId);
       if(selected) { lockDepth(selected); clampAboveFloor(selected); if(snapOn && pointerMoved) trySnap(selected); else resolveOverlaps(selected); lockDepth(selected); }
+      renderer.domElement.style.cursor = hovered ? 'grab' : '';
+      refreshInteractiveScales();
       updateRotateHud();
     });
-    renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; });
+    renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; renderer.domElement.style.cursor = hovered ? 'grab' : ''; refreshInteractiveScales(); });
 
     document.getElementById('add').onclick = ()=>{ if(!introActive) addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0)); };
     document.getElementById('dup').onclick = duplicateSelected;
