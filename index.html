@@ -32,10 +32,14 @@
     #camPad:active { cursor:grabbing; }
     #camPad svg { width:28px; height:28px; pointer-events:none; }
 
-    #introLoader { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:#fff; color:#111; font-size:13px; font-weight:650; letter-spacing:.13em; text-align:center; padding:24px; transition:opacity .45s ease, visibility .45s ease; pointer-events:none; }
+    #introLoader { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:#fff; color:#111; text-align:center; padding:24px; transition:opacity .45s ease, visibility .45s ease; pointer-events:none; }
     #introLoader.hidden { opacity:0; visibility:hidden; }
-    #introLoader .introTitle { line-height:1.45; text-transform:uppercase; }
+    #introLoader .introTitle { line-height:1.45; text-transform:uppercase; font-size:13px; font-weight:650; letter-spacing:.13em; }
+    #introLoader .mobileTitleBreak { display:none; }
     #introLoader .introMini { display:block; margin-top:10px; font-size:10px; font-weight:500; letter-spacing:.08em; opacity:.45; }
+    #introLoader .introProgressWrap { width:min(260px, 62vw); height:1px; margin:16px auto 0; background:rgba(0,0,0,.12); overflow:hidden; }
+    #introLoader .introProgressBar { width:0%; height:100%; background:#111; transition:width .12s linear; }
+    #introLoader .introPercent { margin-top:8px; font-size:10px; font-weight:500; letter-spacing:.08em; opacity:.5; }
 
     /* Mobile / touch layout: conserva la lógica desktop y sólo cambia interfaz + gestos */
     @media (max-width: 760px), (pointer: coarse) {
@@ -110,12 +114,13 @@
         height:50px;
       }
       #camPad svg { width:24px; height:24px; }
+      #introLoader .mobileTitleBreak { display:block; }
     }
 
   </style>
 </head>
 <body>
-  <div id="introLoader"><div class="introTitle">LOOP MINI DIGITAL PLAYGROUND x PAUL SENDE<span class="introMini">cargando módulos</span></div></div>
+  <div id="introLoader"><div class="introTitle">LOOP MINI DIGITAL PLAYGROUND<span class="mobileTitleBreak"></span> X PAUL SENDE<span class="introMini">cargando módulos</span><div class="introProgressWrap"><div class="introProgressBar" id="introProgressBar"></div></div><div class="introPercent" id="introPercent">0%</div></div></div>
   <div id="app"></div>
   <div class="panel">
     <h1>LOOP Sandbox</h1>
@@ -533,9 +538,42 @@
       hud.style.display = 'flex';
     }
 
+    function setIntroProgress(value) {
+      const v = Math.max(0, Math.min(100, Math.round(value)));
+      const bar = document.getElementById('introProgressBar');
+      const percent = document.getElementById('introPercent');
+      if(bar) bar.style.width = v + '%';
+      if(percent) percent.textContent = v + '%';
+    }
     function hideIntroLoader() {
+      setIntroProgress(100);
       const loader = document.getElementById('introLoader');
       if(loader) loader.classList.add('hidden');
+    }
+    function buildIntroTarget(existingBoxes, obj, spreadX, spreadZ) {
+      // Busca una posición final que no intersecte a las anteriores.
+      // No hay piso visible, pero usamos Y como altura de composición.
+      for(let attempt=0; attempt<90; attempt++) {
+        const x = (Math.random() - 0.5) * spreadX;
+        const y = (IS_TOUCH ? 1.15 : 0.85) + Math.random() * (IS_TOUCH ? 4.6 : 3.3);
+        const z = (Math.random() - 0.5) * spreadZ;
+        obj.position.set(x, y, z);
+        obj.updateMatrixWorld(true);
+        const b = new THREE.Box3().setFromObject(obj).expandByScalar(0.22);
+        if(existingBoxes.every(other => !b.intersectsBox(other))) {
+          existingBoxes.push(b.clone());
+          return new THREE.Vector3(x, y, z);
+        }
+      }
+      // Fallback separado por columnas, para que nunca arranquen encimados.
+      const slot = existingBoxes.length;
+      const x = (slot - 1) * (IS_TOUCH ? 2.2 : 2.7);
+      const y = (IS_TOUCH ? 2.0 : 1.5) + slot * 0.85;
+      const z = (slot % 2 ? 0.9 : -0.9);
+      obj.position.set(x, y, z);
+      obj.updateMatrixWorld(true);
+      existingBoxes.push(new THREE.Box3().setFromObject(obj).expandByScalar(0.22));
+      return new THREE.Vector3(x, y, z);
     }
     function startIntroRain() {
       clearAll();
@@ -545,48 +583,55 @@
       orbit.enabled = false;
       unpinRotateHud();
 
-      const count = 13;
-      const spreadX = IS_TOUCH ? 5.4 : 7.6;
-      const spreadZ = IS_TOUCH ? 3.0 : 4.2;
+      const count = 3;
+      const spreadX = IS_TOUCH ? 5.2 : 7.0;
+      const spreadZ = IS_TOUCH ? 2.8 : 4.0;
+      const targetBoxes = [];
+
       for(let i=0; i<count; i++) {
         const p = createModule(Math.floor(Math.random() * 4));
         p.userData.customPalette = getRandomPalette();
         applyPalette(p, p.userData.colorOffset || 0);
-        p.position.set(
-          (Math.random() - 0.5) * spreadX,
-          7.5 + Math.random() * 8.5 + i * 0.10,
-          (Math.random() - 0.5) * spreadZ
-        );
+
         p.rotation.x = (Math.floor(Math.random() * 5) - 2) * Math.PI / 2;
         p.rotation.y = 0;
         p.rotation.z = Math.floor(Math.random() * 8) * Math.PI / 4;
         normalizeRotation(p);
+
+        const target = buildIntroTarget(targetBoxes, p, spreadX, spreadZ);
+        p.userData.freezeTarget = target.clone();
+        p.position.set(
+          target.x + (Math.random() - 0.5) * 0.75,
+          target.y + 6.5 + Math.random() * 5.0 + i * 0.45,
+          target.z + (Math.random() - 0.5) * 0.55
+        );
+
         p.userData.velocity = new THREE.Vector3(
-          (Math.random() - 0.5) * 0.018,
-          -0.030 - Math.random() * 0.030,
-          (Math.random() - 0.5) * 0.018
+          (target.x - p.position.x) * 0.012,
+          -0.032 - Math.random() * 0.025,
+          (target.z - p.position.z) * 0.012
         );
         p.userData.spin = new THREE.Vector3(
-          (Math.random() - 0.5) * 0.030,
+          (Math.random() - 0.5) * 0.026,
           0,
-          (Math.random() - 0.5) * 0.045
+          (Math.random() - 0.5) * 0.038
         );
-        p.userData.freezeY = 0.10 + Math.random() * (IS_TOUCH ? 4.8 : 3.8);
         p.userData.falling = true;
-        p.userData.freezeDelay = i * 45 + Math.random() * 320;
+        p.userData.freezeDelay = i * 120 + Math.random() * 260;
         p.userData.birth = performance.now();
         scene.add(p);
         pieces.push(p);
         introPieces.push(p);
       }
       updateCounter();
-      setTimeout(hideIntroLoader, 260);
+      hideIntroLoader();
     }
     function finishIntroRain() {
       introActive = false;
       orbit.enabled = true;
       introPieces.forEach(p => {
         p.userData.falling = false;
+        if(p.userData.freezeTarget) p.position.copy(p.userData.freezeTarget);
         normalizeRotation(p);
       });
       if(pieces[0]) select(pieces[0]);
@@ -596,32 +641,49 @@
       if(!introActive) return;
       let fallingCount = 0;
       const now = performance.now();
-      introPieces.forEach((p, i) => {
+      introPieces.forEach((p) => {
         if(!p.userData.falling) return;
         fallingCount++;
+        const target = p.userData.freezeTarget;
         const v = p.userData.velocity;
         const spin = p.userData.spin;
-        v.y -= 1.15 * dt;
+
+        // Caída con leve atracción hacia la posición final, para evitar que se encimen.
+        if(target) {
+          v.x += (target.x - p.position.x) * 0.020 * dt;
+          v.z += (target.z - p.position.z) * 0.020 * dt;
+        }
+        v.y -= 1.05 * dt;
         p.position.x += v.x * 60 * dt;
         p.position.y += v.y * 60 * dt;
         p.position.z += v.z * 60 * dt;
         p.rotation.x += spin.x * 60 * dt;
         p.rotation.z += spin.z * 60 * dt;
+
         const canFreeze = now - p.userData.birth > p.userData.freezeDelay;
-        if(canFreeze && p.position.y <= p.userData.freezeY) {
+        if(canFreeze && target && p.position.y <= target.y) {
           p.userData.falling = false;
+          p.position.copy(target);
           normalizeRotation(p);
-          clampAboveFloor(p);
         }
       });
-      if(fallingCount === 0 || (introStarted && now - introPieces[0].userData.birth > 5200)) finishIntroRain();
+      if(fallingCount === 0 || (introStarted && introPieces[0] && now - introPieces[0].userData.birth > 5000)) finishIntroRain();
     }
 
     try {
       transform.setMode('translate');
+      setIntroProgress(8);
       loadRawGeometries();
       updateCounter();
-      setTimeout(startIntroRain, 850);
+      const loadingStarted = performance.now();
+      const loadingDuration = 950;
+      function animateIntroLoading() {
+        const t = Math.min(1, (performance.now() - loadingStarted) / loadingDuration);
+        setIntroProgress(8 + t * 92);
+        if(t < 1) requestAnimationFrame(animateIntroLoading);
+        else startIntroRain();
+      }
+      requestAnimationFrame(animateIntroLoading);
     } catch(err) {
       const box = document.getElementById('errorBox'); box.style.display='block'; box.textContent='No se pudo reconstruir la geometría cruda.';
       console.error(err);
