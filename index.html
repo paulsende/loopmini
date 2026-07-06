@@ -186,7 +186,7 @@
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,1.15,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
-    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = !zLockOn; scene.add(transform);
+    const transform = new TransformControls(camera, renderer.domElement); transform.setMode('translate'); transform.setSpace('local'); transform.showX = true; transform.showY = true; transform.showZ = false; scene.add(transform);
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { clampAboveFloor(selected); if(transform.getMode()==='translate') { if(snapOn) trySnap(selected); else resolveOverlaps(selected); } updateRotateHud(); } });
     transform.addEventListener('objectChange', () => { updateRotateHud(); });
 
