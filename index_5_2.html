@@ -168,7 +168,7 @@
     scene.fog = null;
     const camera = new THREE.PerspectiveCamera(IS_TOUCH ? 50 : 45, innerWidth/innerHeight, .1, 100); camera.position.set(IS_TOUCH ? 6.4 : 5.8, IS_TOUCH ? 5.2 : 4.2, IS_TOUCH ? 7.6 : 6.8);
     const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
-    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.72; renderer.setClearColor(0xffffff, 1); container.appendChild(renderer.domElement);
+    renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); renderer.shadowMap.enabled=true; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=0.65; renderer.setClearColor(0xffffff, 1); container.appendChild(renderer.domElement);
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
     const orbit = new OrbitControls(camera, renderer.domElement); orbit.enableDamping=true; orbit.target.set(0,.7,0); orbit.enablePan = !IS_TOUCH; orbit.rotateSpeed = IS_TOUCH ? 0.7 : 1; orbit.zoomSpeed = IS_TOUCH ? 0.7 : 1;
@@ -176,12 +176,13 @@
     transform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; if(!e.value && selected) { clampAboveFloor(selected); if(transform.getMode()==='translate') { if(snapOn) trySnap(selected); else resolveOverlaps(selected); } updateRotateHud(); } });
     transform.addEventListener('objectChange', () => { updateRotateHud(); });
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.12));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 0.22));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.108));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b8b8, 0.198));
     const key = new THREE.DirectionalLight(0xffffff,3.1); key.position.set(4,8,5); key.castShadow=true; key.shadow.mapSize.set(2048,2048); scene.add(key);
     const fill = new THREE.DirectionalLight(0xffffff,0.28); fill.position.set(-5,4,-3); scene.add(fill);
 
     let templateGeometries = [], pieces=[], selected=null, idCounter=1, snapOn=true, metalness=0, roughness=.22, lockedDepthZ=0, snapConnectorFaces=[];
+    let hudPinned = false, hudPinnedX = 0, hudPinnedY = 0;
     renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
     renderer.domElement.addEventListener('touchmove', e => e.preventDefault(), {passive:false});
     const raycaster = new THREE.Raycaster(); const pointer = new THREE.Vector2(); const dragPlane = new THREE.Plane(new THREE.Vector3(0,0,1), -lockedDepthZ); const dragPoint = new THREE.Vector3(); const dragOffset = new THREE.Vector3(); let isDraggingPiece = false; let pointerMoved = false;
@@ -216,7 +217,7 @@
     }
 
     function createGlossyMaterial(color) {
-      return new THREE.MeshPhysicalMaterial({ color, metalness, roughness, clearcoat:1, clearcoatRoughness:.06, envMapIntensity:.28, side:THREE.DoubleSide });
+      return new THREE.MeshPhysicalMaterial({ color, metalness, roughness, clearcoat:1, clearcoatRoughness:.06, envMapIntensity:.252, side:THREE.DoubleSide });
     }
 
     function getBaseColors() {
@@ -331,8 +332,7 @@
     function normalizeRotation(obj) {
       const qZ = Math.PI / 4;
       const qX = Math.PI / 2;
-      const xStep = Math.max(-1, Math.min(1, Math.round(obj.rotation.x / qX)));
-      obj.rotation.x = xStep * qX;     // X sólo puede ser -90°, 0° o +90°
+      obj.rotation.x = Math.round(obj.rotation.x / qX) * qX; // X cada 90°, acumulativo
       obj.rotation.y = 0;              // Y queda bloqueado
       obj.rotation.z = Math.round(obj.rotation.z / qZ) * qZ; // Z cada 45°
     }
@@ -342,10 +342,7 @@
       if(axis === 'y') return;
       const before = getObjectCenter3D(selected);
       if(axis === 'x') {
-        const q = Math.PI / 2;
-        const current = Math.round(selected.rotation.x / q);
-        const next = Math.max(-1, Math.min(1, current + step));
-        selected.rotation.x = next * q;
+        selected.rotation.x += step * Math.PI / 2;
       } else if(axis === 'z') {
         selected.rotation.z += step * Math.PI / 4;
       }
@@ -391,7 +388,7 @@
       pieces.push(p); resolveOverlaps(p); select(p); updateCounter(); return p;
     }
 
-    function select(obj) { selected=obj; pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { clampAboveFloor(selected); } transform.detach(); updateRotateHud(); }
+    function select(obj) { const changed = selected !== obj; selected=obj; if(changed) unpinRotateHud(); pieces.forEach(p=>p.scale.setScalar(1)); if(selected) { clampAboveFloor(selected); } transform.detach(); updateRotateHud(); }
     function updateCounter() { document.getElementById('counter').textContent = `${pieces.length} módulo${pieces.length===1?'':'s'}`; }
     function duplicateSelected() { if(!selected) return; addPiece(selected.position.clone().add(new THREE.Vector3(.75,.25,0)), [selected.rotation.x,selected.rotation.y,selected.rotation.z], selected.userData.colorOffset || 0); }
     function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); selected=null; updateCounter(); }
@@ -499,9 +496,25 @@
     }
     function clearAll() { pieces.forEach(p=>scene.remove(p)); pieces=[]; selected=null; transform.detach(); updateCounter(); }
     function screenShot() { const a=document.createElement('a'); a.href=renderer.domElement.toDataURL('image/png'); a.download='loop-sandbox-captura.png'; a.click(); }
+    function pinRotateHud() {
+      const hud = document.getElementById('rotateHud');
+      const r = hud.getBoundingClientRect();
+      if(r.width && r.height) {
+        hudPinned = true;
+        hudPinnedX = r.left + r.width / 2;
+        hudPinnedY = r.top + r.height / 2;
+      }
+    }
+    function unpinRotateHud() { hudPinned = false; }
     function updateRotateHud() {
       const hud = document.getElementById('rotateHud');
-      if(!selected) { hud.style.display = 'none'; return; }
+      if(!selected) { hud.style.display = 'none'; hudPinned = false; return; }
+      if(hudPinned) {
+        hud.style.left = hudPinnedX + 'px';
+        hud.style.top = hudPinnedY + 'px';
+        hud.style.display = 'flex';
+        return;
+      }
       const b = new THREE.Box3().setFromObject(selected);
       const p = b.getCenter(new THREE.Vector3());
       p.y = b.max.y + 0.38;
@@ -538,6 +551,7 @@
     }
     renderer.domElement.addEventListener('pointerdown', (event)=>{
       if(transform.dragging) return;
+      unpinRotateHud();
       event.preventDefault();
       updatePointer(event);
       const hits = raycaster.intersectObjects(pieces, true);
@@ -583,10 +597,10 @@
     document.getElementById('add').onclick = ()=>addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0));
     document.getElementById('dup').onclick = duplicateSelected;
     document.getElementById('del').onclick = deleteSelected;
-    document.getElementById('hudRotXL').onclick = (e)=>{ e.stopPropagation(); rotateAxis('x', -1); };
-    document.getElementById('hudRotXR').onclick = (e)=>{ e.stopPropagation(); rotateAxis('x', 1); };
-    document.getElementById('hudRotL').onclick = (e)=>{ e.stopPropagation(); rotateZ(-1); };
-    document.getElementById('hudRotR').onclick = (e)=>{ e.stopPropagation(); rotateZ(1); };
+    document.getElementById('hudRotXL').onclick = (e)=>{ e.stopPropagation(); pinRotateHud(); rotateAxis('x', -1); };
+    document.getElementById('hudRotXR').onclick = (e)=>{ e.stopPropagation(); pinRotateHud(); rotateAxis('x', 1); };
+    document.getElementById('hudRotL').onclick = (e)=>{ e.stopPropagation(); pinRotateHud(); rotateZ(-1); };
+    document.getElementById('hudRotR').onclick = (e)=>{ e.stopPropagation(); pinRotateHud(); rotateZ(1); };
     document.getElementById('shuffle').onclick = shuffleColors;
     document.getElementById('randomColor').onclick = randomizeSelectedColors;
     document.getElementById('clear').onclick = clearAll;
@@ -612,6 +626,7 @@
       const panSpeedPad = IS_TOUCH ? 0.0022 : 0.0016;
       function start(e) {
         e.preventDefault();
+        unpinRotateHud();
         active = true; lastX = e.clientX; lastY = e.clientY;
         camPad.setPointerCapture?.(e.pointerId);
         orbit.enabled = false;
@@ -640,7 +655,7 @@
       camPad.addEventListener('pointercancel', end);
     })();
 
-    addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); });
+    addEventListener('resize', ()=>{ unpinRotateHud(); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio, IS_TOUCH ? 1.5 : 2)); });
     renderer.setAnimationLoop(()=>{ orbit.update(); updateRotateHud(); renderer.render(scene,camera); });
   </script>
 </body>
