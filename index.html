@@ -119,6 +119,144 @@
       #introLoader .mobileTitleBreak { display:block; }
     }
 
+    /* Panel mobile con íconos */
+    .mobilePanel, .mobileHelp { display:none; }
+
+    @media (max-width: 760px), (pointer: coarse) {
+      .panel { display:none !important; }
+      .mobilePanel {
+        position:fixed;
+        z-index:10;
+        display:block;
+        left:50%;
+        bottom:calc(12px + env(safe-area-inset-bottom));
+        transform:translateX(-50%);
+        width:min(86vw, 360px);
+        box-sizing:border-box;
+        padding:18px 18px 16px;
+        border-radius:28px;
+        background:rgba(249,249,247,.96);
+        border:1px solid rgba(0,0,0,.05);
+        box-shadow:0 22px 70px rgba(0,0,0,.16);
+        backdrop-filter:blur(22px);
+        -webkit-backdrop-filter:blur(22px);
+        color:#171717;
+      }
+      .mobilePanel h1 {
+        margin:0 0 14px;
+        text-align:center;
+        font-size:15px;
+        line-height:1.2;
+        font-weight:650;
+        letter-spacing:-.025em;
+        text-transform:lowercase;
+      }
+      .mobileAdd {
+        width:100%;
+        height:58px;
+        min-height:58px;
+        margin:0 0 10px;
+        padding:0;
+        border-radius:18px;
+        background:#171717;
+        color:white;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      }
+      .mobileAdd svg { width:28px; height:28px; }
+      .mobileToolGrid {
+        display:grid;
+        grid-template-columns:repeat(3, 1fr);
+        gap:9px;
+      }
+      .mobileIconButton {
+        position:relative;
+        height:52px;
+        min-height:52px;
+        padding:0;
+        border-radius:16px;
+        background:#e5e5e3;
+        color:#171717;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        box-shadow:none;
+        transition:transform .12s ease, background .16s ease;
+      }
+      .mobileIconButton:active { transform:scale(.97); }
+      .mobileIconButton svg {
+        width:25px;
+        height:25px;
+        stroke:currentColor;
+        fill:none;
+        stroke-width:1.9;
+        stroke-linecap:round;
+        stroke-linejoin:round;
+        pointer-events:none;
+      }
+      .mobileIconButton .filled { fill:currentColor; stroke:none; }
+      .mobileIconButton.toggleOn { background:#f4c5d8; }
+      .mobileIconButton.toggleOff { background:#d6d6d4; }
+      #mSnap.toggleOn .snapBody { fill:currentColor; stroke:currentColor; }
+      #mSnap.toggleOn .snapTips { fill:currentColor; stroke:currentColor; }
+      #mSnap.toggleOff .snapBody, #mSnap.toggleOff .snapTips { fill:none; }
+      #mZMove.toggleOff .lockShackle { d:path("M8 10V8a4 4 0 0 1 7.2-2.4"); }
+      .mobileIconButton[disabled] { opacity:.38; }
+      .mobileHint {
+        margin-top:12px;
+        text-align:center;
+        font-size:10px;
+        color:#8b8b8b;
+        letter-spacing:.01em;
+      }
+      .right {
+        top:calc(10px + env(safe-area-inset-top));
+        right:10px;
+      }
+      #rotateHud {
+        bottom:calc(302px + env(safe-area-inset-bottom));
+      }
+      #camPad {
+        bottom:calc(300px + env(safe-area-inset-bottom));
+      }
+      #errorBox {
+        bottom:calc(354px + env(safe-area-inset-bottom));
+      }
+      .mobileHelp {
+        position:fixed;
+        inset:0;
+        z-index:30;
+        align-items:center;
+        justify-content:center;
+        padding:22px;
+        background:rgba(0,0,0,.28);
+        backdrop-filter:blur(8px);
+        -webkit-backdrop-filter:blur(8px);
+      }
+      .mobileHelp.open { display:flex; }
+      .mobileHelpCard {
+        width:min(92vw, 420px);
+        max-height:min(82dvh, 720px);
+        overflow:auto;
+        box-sizing:border-box;
+        padding:22px;
+        border-radius:24px;
+        background:#f8f8f5;
+        box-shadow:0 22px 70px rgba(0,0,0,.2);
+      }
+      .mobileHelpCard h2 { margin:0 0 14px; font-size:17px; }
+      .mobileHelpTable { width:100%; border-collapse:collapse; }
+      .mobileHelpTable td { padding:9px 4px; border-top:1px solid rgba(0,0,0,.09); font-size:12px; vertical-align:middle; }
+      .mobileHelpTable tr:first-child td { border-top:0; }
+      .mobileHelpTable td:first-child { width:46px; text-align:center; }
+      .mobileHelpTable svg { width:25px; height:25px; stroke:#171717; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+      .mobileHelpTable .filled { fill:#171717; stroke:none; }
+      .mobileHelpTable .toggleChip { display:inline-flex; width:38px; height:32px; border-radius:10px; align-items:center; justify-content:center; background:#f4c5d8; }
+      .mobileHelpTable .toggleChip svg { width:21px; height:21px; }
+      .mobileHelpCard button { width:100%; margin-top:14px; }
+    }
+
   </style>
 </head>
 <body>
@@ -127,10 +265,7 @@
   <div class="panel">
     <h1>LOOP MINI PLAYGROUND X PAUL SENDE</h1>
     <button class="wide" id="add">Agregar módulo</button>
-    <div class="grid">
-      <button class="secondary" id="dup">Duplicar</button>
-      <button class="secondary" id="del">Borrar</button>
-    </div>
+    <button class="secondary wide" id="del">Borrar</button>
     <div class="grid" style="margin-top:14px;">
       <button class="secondary" id="shuffle">Rotar colores</button>
       <button class="secondary" id="randomColor">Color random</button>
@@ -140,6 +275,38 @@
     <div class="grid" style="margin-top:14px;">
       <button class="secondary" id="clear">Limpiar</button>
       <button class="secondary" id="shot">Captura</button>
+    </div>
+  </div>
+
+  <div class="mobilePanel" aria-label="Controles mobile">
+    <h1>loop mini playground x paul sende</h1>
+    <button class="mobileAdd" id="mAdd" aria-label="Agregar módulo" title="Agregar módulo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
+    <div class="mobileToolGrid">
+      <button class="mobileIconButton" id="mDel" aria-label="Borrar módulo" title="Borrar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button>
+      <button class="mobileIconButton" id="mShuffle" aria-label="Rotar colores" title="Rotar colores"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.3a8.7 8.7 0 0 1 7.3 4" stroke="#124baa"/><path d="M19.3 7.3 16.4 7l1.2-2.6" stroke="#124baa"/><path d="M19.5 10.4a8.7 8.7 0 0 1-3.6 8" stroke="#171717"/><path d="m15.9 18.4.8-2.8 2.4 1.6" stroke="#171717"/><path d="M13.2 20.5a8.7 8.7 0 0 1-8-4.2" stroke="#f4a7c2"/><path d="m5.2 16.3 2.8.5-1.8 2.3" stroke="#f4a7c2"/></svg></button>
+      <button class="mobileIconButton" id="mRandomColor" aria-label="Colores aleatorios" title="Color random"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="#171717"/><path d="M12 3.5a8.5 8.5 0 0 1 7.4 4.3" stroke="#124baa" stroke-width="3.1"/><path d="M19.4 7.8a8.5 8.5 0 0 1-.2 8.8" stroke="#f4a7c2" stroke-width="3.1"/><path d="M19.2 16.6A8.5 8.5 0 0 1 12 20.5" stroke="#f6d56f" stroke-width="3.1"/><path d="M12 20.5a8.5 8.5 0 0 1-7.3-4.2" stroke="#e79a62" stroke-width="3.1"/><path d="M4.7 16.3a8.5 8.5 0 0 1 0-8.6" stroke="#77b85a" stroke-width="3.1"/><path d="M4.7 7.7A8.5 8.5 0 0 1 12 3.5" stroke="#7d63c7" stroke-width="3.1"/><text x="12" y="15.4" text-anchor="middle" font-size="10" font-weight="700" fill="#171717" stroke="none">?</text></svg></button>
+      <button class="mobileIconButton toggleOn" id="mSnap" aria-label="Snap activado" aria-pressed="true" title="Snap"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="snapBody" d="M7 4v7a5 5 0 0 0 10 0V4"/><path class="snapTips" d="M7 8h4V4H7M17 8h-4V4h4"/></svg></button>
+      <button class="mobileIconButton toggleOn" id="mZMove" aria-label="Bloqueo de eje Z activado" aria-pressed="true" title="Bloqueo eje Z"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path class="lockShackle" d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg></button>
+      <button class="mobileIconButton" id="mClear" aria-label="Limpiar escena" title="Limpiar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 3 9 13.5"/><path d="m8.8 12.7 5.6 2.9"/><path d="M7.5 13.4 3.8 19l7.9 2 2.7-5.4Z"/><path d="M5.8 16.2 11 18.9M4.8 18l4 2"/></svg></button>
+      <button class="mobileIconButton" id="mShot" aria-label="Guardar captura" title="Captura"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h3l1.5-2h5L16 7h3a2 2 0 0 1 2 2v9H3V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3"/></svg></button>
+      <button class="mobileIconButton" id="mInfo" aria-label="Información" title="Información"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
+    </div>
+    <div class="mobileHint">rosa = función activada</div>
+  </div>
+  <div class="mobileHelp" id="mobileHelp" role="dialog" aria-modal="true" aria-labelledby="mobileHelpTitle">
+    <div class="mobileHelpCard">
+      <h2 id="mobileHelpTitle">Controles</h2>
+      <table class="mobileHelpTable" aria-label="Referencia de controles">
+        <tr><td><svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></svg></td><td>Agregar módulo</td></tr>
+        <tr><td><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></td><td>Borrar</td></tr>
+        <tr><td><svg viewBox="0 0 24 24"><path d="M12 3.3a8.7 8.7 0 0 1 7.3 4" stroke="#124baa"/><path d="M19.3 7.3 16.4 7l1.2-2.6" stroke="#124baa"/><path d="M19.5 10.4a8.7 8.7 0 0 1-3.6 8"/><path d="m15.9 18.4.8-2.8 2.4 1.6"/><path d="M13.2 20.5a8.7 8.7 0 0 1-8-4.2" stroke="#f4a7c2"/><path d="m5.2 16.3 2.8.5-1.8 2.3" stroke="#f4a7c2"/></svg></td><td>Rotar colores</td></tr>
+        <tr><td><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 7.4 4.3" stroke="#124baa" stroke-width="3.1"/><path d="M19.4 7.8a8.5 8.5 0 0 1-.2 8.8" stroke="#f4a7c2" stroke-width="3.1"/><path d="M19.2 16.6A8.5 8.5 0 0 1 12 20.5" stroke="#f6d56f" stroke-width="3.1"/><path d="M12 20.5a8.5 8.5 0 0 1-7.3-4.2" stroke="#e79a62" stroke-width="3.1"/><path d="M4.7 16.3a8.5 8.5 0 0 1 0-8.6" stroke="#77b85a" stroke-width="3.1"/><path d="M4.7 7.7A8.5 8.5 0 0 1 12 3.5" stroke="#7d63c7" stroke-width="3.1"/><text x="12" y="15.4" text-anchor="middle" font-size="10" font-weight="700" fill="#171717" stroke="none">?</text></svg></td><td>Color random</td></tr>
+        <tr><td><span class="toggleChip"><svg viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M7 8h4V4H7M17 8h-4V4h4"/></svg></span></td><td>Snap ON/OFF</td></tr>
+        <tr><td><span class="toggleChip"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg></span></td><td>Bloqueo eje Z ON/OFF</td></tr>
+        <tr><td><svg viewBox="0 0 24 24"><path d="M14.5 3 9 13.5"/><path d="m8.8 12.7 5.6 2.9"/><path d="M7.5 13.4 3.8 19l7.9 2 2.7-5.4Z"/><path d="M5.8 16.2 11 18.9M4.8 18l4 2"/></svg></td><td>Limpiar</td></tr>
+        <tr><td><svg viewBox="0 0 24 24"><path d="M5 7h3l1.5-2h5L16 7h3a2 2 0 0 1 2 2v9H3V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3"/></svg></td><td>Captura</td></tr>
+      </table>
+      <button id="closeMobileHelp">Cerrar</button>
     </div>
   </div>
   <div class="right" id="counter">Cargando módulo...</div>
@@ -445,7 +612,6 @@
       updateRotateHud();
     }
     function updateCounter() { document.getElementById('counter').textContent = `${pieces.length} módulo${pieces.length===1?'':'s'}`; }
-    function duplicateSelected() { if(!selected) return; addPiece(selected.position.clone().add(new THREE.Vector3(.75,.25,0)), [selected.rotation.x,selected.rotation.y,selected.rotation.z], selected.userData.colorOffset || 0); }
     function deleteSelected() { if(!selected) return; transform.detach(); scene.remove(selected); pieces=pieces.filter(p=>p!==selected); if(hovered===selected) hovered=null; selected=null; refreshInteractiveScales(); updateCounter(); }
     function shuffleColors() { if(!selected) return; selected.userData.customPalette = null; applyPalette(selected, ((selected.userData.colorOffset||0)+1)%4); }
     function getSnapFaces(obj) {
@@ -803,7 +969,6 @@
     renderer.domElement.addEventListener('pointercancel', ()=>{ isDraggingPiece=false; orbit.enabled=true; renderer.domElement.style.cursor = hovered ? 'grab' : ''; refreshInteractiveScales(); });
 
     document.getElementById('add').onclick = ()=>{ if(!introActive) addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0)); };
-    document.getElementById('dup').onclick = duplicateSelected;
     document.getElementById('del').onclick = deleteSelected;
     document.getElementById('hudRotXL').onclick = (e)=>{ e.stopPropagation(); pinRotateHud(); rotateAxis('x', -1); };
     document.getElementById('hudRotXR').onclick = (e)=>{ e.stopPropagation(); pinRotateHud(); rotateAxis('x', 1); };
@@ -813,22 +978,51 @@
     document.getElementById('randomColor').onclick = randomizeSelectedColors;
     document.getElementById('clear').onclick = clearAll;
     document.getElementById('shot').onclick = screenShot;
+
+    // Controles mobile: misma lógica, interfaz separada.
+    document.getElementById('mAdd').onclick = ()=>{ if(!introActive) addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0)); };
+    document.getElementById('mDel').onclick = deleteSelected;
+    document.getElementById('mShuffle').onclick = shuffleColors;
+    document.getElementById('mRandomColor').onclick = randomizeSelectedColors;
+    document.getElementById('mClear').onclick = clearAll;
+    document.getElementById('mShot').onclick = screenShot;
+    const mobileHelp = document.getElementById('mobileHelp');
+    document.getElementById('mInfo').onclick = ()=> mobileHelp.classList.add('open');
+    document.getElementById('closeMobileHelp').onclick = ()=> mobileHelp.classList.remove('open');
+    mobileHelp.addEventListener('pointerdown', (e)=>{ if(e.target === mobileHelp) mobileHelp.classList.remove('open'); });
+
     function setToggleButtonState(button, isOn) {
+      if(!button) return;
       button.classList.toggle('toggleOn', isOn);
       button.classList.toggle('toggleOff', !isOn);
+      button.setAttribute('aria-pressed', String(isOn));
     }
-    document.getElementById('snap').onclick = ()=>{
+    function syncSnapButtons() {
+      const desktop = document.getElementById('snap');
+      desktop.textContent = `Snap: ${snapOn ? 'ON' : 'OFF'}`;
+      setToggleButtonState(desktop, snapOn);
+      const mobile = document.getElementById('mSnap');
+      mobile.setAttribute('aria-label', `Snap ${snapOn ? 'activado' : 'desactivado'}`);
+      setToggleButtonState(mobile, snapOn);
+    }
+    function toggleSnap() {
       snapOn = !snapOn;
-      const btn = document.getElementById('snap');
-      btn.textContent = `Snap: ${snapOn ? 'ON' : 'OFF'}`;
-      setToggleButtonState(btn, snapOn);
-    };
+      syncSnapButtons();
+    }
+    document.getElementById('snap').onclick = toggleSnap;
+    document.getElementById('mSnap').onclick = toggleSnap;
 
+    function syncZLockButtons() {
+      const desktop = document.getElementById('zMove');
+      desktop.textContent = `BLOQUEO EJE Z: ${zLockOn ? 'ON' : 'OFF'}`;
+      setToggleButtonState(desktop, zLockOn);
+      const mobile = document.getElementById('mZMove');
+      mobile.setAttribute('aria-label', `Bloqueo de eje Z ${zLockOn ? 'activado' : 'desactivado'}`);
+      setToggleButtonState(mobile, zLockOn);
+    }
     function toggleZLock() {
       zLockOn = !zLockOn;
-      const btn = document.getElementById('zMove');
-      btn.textContent = `BLOQUEO EJE Z: ${zLockOn ? 'ON' : 'OFF'}`;
-      setToggleButtonState(btn, zLockOn);
+      syncZLockButtons();
       transform.showZ = !zLockOn;
       if(zLockOn) {
         pieces.forEach(p => lockDepth(p));
@@ -837,14 +1031,14 @@
       updateRotateHud();
     }
     document.getElementById('zMove').onclick = toggleZLock;
+    document.getElementById('mZMove').onclick = toggleZLock;
 
 
     addEventListener('keydown', (e)=>{
       if(e.target.tagName==='INPUT') return;
       if(e.key==='a' || e.key==='A') addPiece(new THREE.Vector3((Math.random()-.5)*2,0,0));
-      if(e.key==='d' || e.key==='D') duplicateSelected();
       if(e.key==='Delete' || e.key==='Backspace') deleteSelected();
-      if(e.key==='s' || e.key==='S') { snapOn=!snapOn; document.getElementById('snap').textContent=`Snap: ${snapOn?'ON':'OFF'}`; }
+      if(e.key==='s' || e.key==='S') toggleSnap();
       if(e.key==='q' || e.key==='Q') rotateZ(-1);
       if(e.key==='e' || e.key==='E') rotateZ(1);
       if(e.key==='r' || e.key==='R') rotateAxis('x', 1);
